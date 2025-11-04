@@ -8,7 +8,9 @@ RUN apk add --no-cache nginx
 WORKDIR /usr/src/app
 
 # Kopieer de static web app bestanden naar de container
-COPY ./static /usr/share/nginx/html
+COPY index.html /usr/share/nginx/html/
+COPY app.js /usr/share/nginx/html/
+COPY style.css /usr/share/nginx/html/
 
 # Installeer json-server als globale npm package
 RUN npm install -g json-server
