@@ -302,6 +302,7 @@ const app = {
       appState.editingWineId = wineId;
       const wine = this.getWineById(wineId);
       if (!wine) {
+        console.log(wineId);
         this.showToast('Wijn niet gevonden');
         this.showCollection();
         return;
