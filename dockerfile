@@ -8,6 +8,7 @@ WORKDIR /app
 COPY ./index.html /app/public/index.html 
 COPY ./style.css /app/public/style.css
 COPY ./app.js /app/public/app.js
+COPY ./start.sh /app/start.sh
 
 # Kopieer het db.json bestand nodig voor json-server
 COPY ./db.json /app/db.json
@@ -16,7 +17,6 @@ COPY ./db.json /app/db.json
 RUN npm install -g json-server http-server
 
 # Shell script maken om de statische app en json-server tegelijkertijd te draaien
-RUN echo '#!/bin/sh\n\njson-server --watch /app/db.json --port 3001 &\nhttp-server /app/public -p 80' > /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Exposeer poorten
