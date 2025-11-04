@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wijnkelder Beheer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Wine Collection View -->
+        <div id="collectionView" class="view">
+            <header class="app-header">
+                <h1>🍷 Mijn Wijnkelder</h1>
+                <div style="display: flex; align-items: center; gap: var(--space-12);">
+                    <div id="connectionStatus" class="connection-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Verbinden...</span>
+                    </div>
+                    <button class="btn btn--primary" onclick="app.showWineForm()">+ Nieuwe Wijn</button>
+                </div>
+            </header>
+            
+            <div class="filter-controls">
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all" onclick="app.setStockFilter('all')">Alle wijnen</button>
+                    <button class="filter-btn" data-filter="in_stock" onclick="app.setStockFilter('in_stock')">In voorraad</button>
+                    <button class="filter-btn" data-filter="out_of_stock" onclick="app.setStockFilter('out_of_stock')">Uit voorraad</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Zoek op naam, wijnhuis, streek, druif..." oninput="app.filterWines()">
+                </div>
+            </div>
+
+            <div id="wineGrid" class="wine-grid"></div>
+        </div>
+
+        <!-- Wine Form View (Add/Edit) -->
+        <div id="wineFormView" class="view" style="display: none;">
+            <header class="app-header">
+                <button class="btn-back" onclick="app.showCollection()">← Terug</button>
+                <h1 id="wineFormTitle">Nieuwe Wijn</h1>
+            </header>
+            
+            <div class="form-container">
+                <form id="wineForm" onsubmit="app.saveWine(event)">
+                    <input type="hidden" id="wineId">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Naam *</label>
+                        <input type="text" id="wineNaam" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Wijnhuis *</label>
+                        <input type="text" id="wineWijnhuis" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Vintage *</label>
+                        <input type="number" id="wineVintage" class="form-control" min="1900" max="2099" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Streek *</label>
+                        <input type="text" id="wineStreek" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Druif *</label>
+                        <input type="text" id="wineDruif" class="form-control" placeholder="Bijv. Chardonnay, Cabernet Sauvignon" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Kleur *</label>
+                        <select id="wineKleur" class="form-control" required>
+                            <option value="">Selecteer kleur</option>
+                            <option value="Wit">Wit</option>
+                            <option value="Rosé">Rosé</option>
+                            <option value="Rood">Rood</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Locatie *</label>
+                        <select id="wineLocatie" class="form-control" required>
+                            <option value="">Selecteer locatie</option>
+                            <option value="Kelder">Kelder</option>
+                            <option value="Klimaatkast">Klimaatkast</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Aantal flessen *</label>
+                        <input type="number" id="wineAantalFlessen" class="form-control" min="0" value="1" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn--secondary" onclick="app.showCollection()">Annuleren</button>
+                        <button type="submit" class="btn btn--primary">Opslaan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Wine Detail View -->
+        <div id="wineDetailView" class="view" style="display: none;">
+            <header class="app-header">
+                <button class="btn-back" onclick="app.showCollection()">← Terug</button>
+                <h1 id="wineDetailName"></h1>
+            </header>
+            
+            <div class="detail-container">
+                <div class="wine-info-card card">
+                    <div class="card__body">
+                        <div id="wineDetailInfo"></div>
+                        <div class="wine-actions">
+                            <button class="btn btn--secondary" onclick="app.editWine()">Bewerken</button>
+                            <button class="btn btn--outline" onclick="app.deleteWine()">Verwijderen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tasting-section">
+                    <div class="section-header">
+                        <h2>Proefnotities</h2>
+                        <button class="btn btn--primary" onclick="app.showTastingForm()">+ Nieuwe Proefnotitie</button>
+                    </div>
+                    <div id="tastingNotesList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasting Form View -->
+        <div id="tastingFormView" class="view" style="display: none;">
+            <header class="app-header">
+                <button class="btn-back" onclick="app.backFromTastingForm()">← Terug</button>
+                <h1>Proefformulier</h1>
+            </header>
+            
+            <div class="form-container">
+                <form id="tastingForm" onsubmit="app.saveTastingNote(event)">
+                    <input type="hidden" id="tastingId">
+                    <input type="hidden" id="tastingWineId">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Datum</label>
+                        <input type="date" id="tastingDatum" class="form-control" required>
+                    </div>
+
+                    <!-- Kleur Sectie -->
+                    <div class="form-section">
+                        <h3>🎨 Kleur</h3>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Wijntype *</label>
+                            <div class="radio-group wine-type-group">
+                                <label class="radio-label wine-type-option">
+                                    <input type="radio" name="wijntype" value="Wit" onchange="app.updateColorOptions()" required>
+                                    <span class="wine-type-icon white">🍷</span>
+                                    <span>Wit</span>
+                                </label>
+                                <label class="radio-label wine-type-option">
+                                    <input type="radio" name="wijntype" value="Rosé" onchange="app.updateColorOptions()" required>
+                                    <span class="wine-type-icon rose">🍷</span>
+                                    <span>Rosé</span>
+                                </label>
+                                <label class="radio-label wine-type-option">
+                                    <input type="radio" name="wijntype" value="Rood" onchange="app.updateColorOptions()" required>
+                                    <span class="wine-type-icon red">🍷</span>
+                                    <span>Rood</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="colorOptionsGroup" style="display: none;">
+                            <label class="form-label">Kleur *</label>
+                            <div id="colorOptions" class="radio-group"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Intensiteit (visueel) *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="intensiteit" value="Laag" required>
+                                    <span>💧 Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="intensiteit" value="Medium" required>
+                                    <span>💧💧 Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="intensiteit" value="Hoog" required>
+                                    <span>💧💧💧 Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Geur Sectie -->
+                    <div class="form-section">
+                        <h3>🌸 Geur</h3>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Intensiteit *</label>
+                            <div class="radio-group">
+                                <label class="radio-label intensity-option">
+                                    <input type="radio" name="geurintensiteit" value="Laag" required>
+                                    <span>📊 Laag</span>
+                                </label>
+                                <label class="radio-label intensity-option">
+                                    <input type="radio" name="geurintensiteit" value="Medium" required>
+                                    <span>📊📊 Medium</span>
+                                </label>
+                                <label class="radio-label intensity-option">
+                                    <input type="radio" name="geurintensiteit" value="Hoog" required>
+                                    <span>📊📊📊 Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Primair</label>
+                            <div class="checkbox-grid">
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Citrus" onchange="app.updateStarCalculation()">
+                                    <span>🍋 Citrus</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Boomvruchten" onchange="app.updateStarCalculation()">
+                                    <span>🍎 Boomvruchten</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Steenfruit" onchange="app.updateStarCalculation()">
+                                    <span>🍑 Steenfruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Tropisch fruit" onchange="app.updateStarCalculation()">
+                                    <span>🍍 Tropisch fruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Rood fruit" onchange="app.updateStarCalculation()">
+                                    <span>🍓 Rood fruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Donker fruit" onchange="app.updateStarCalculation()">
+                                    <span>🫐 Donker fruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Bloemen" onchange="app.updateStarCalculation()">
+                                    <span>🌸 Bloemen</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="geur_primair" value="Kruiden" onchange="app.updateStarCalculation()">
+                                    <span>🌿 Kruiden</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Secundair</label>
+                            <div class="checkbox-grid">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="geur_secundair" value="Brood/gistachtig" onchange="app.updateStarCalculation()">
+                                    <span>Brood/gistachtig</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="geur_secundair" value="Houtrijping" onchange="app.updateStarCalculation()">
+                                    <span>Houtrijping</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Tertiair</label>
+                            <div class="checkbox-grid">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="geur_tertiair" value="Evolutie (chocolade, paddestoel, etc.)" onchange="app.updateStarCalculation()">
+                                    <span>Evolutie (chocolade, paddestoel, etc.)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mouthfeel Sectie -->
+                    <div class="form-section">
+                        <h3>👄 Mouthfeel</h3>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Droog</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="droog" value="0" required>
+                                    <span>Heel droog (0)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="droog" value="1" required>
+                                    <span>Droog (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="droog" value="2" required>
+                                    <span>Halfzoet (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="droog" value="3" required>
+                                    <span>Zoet (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Tannines</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="tannines" value="0" required>
+                                    <span>Niet aanwezig (0)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="tannines" value="1" required>
+                                    <span>Laag (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="tannines" value="2" required>
+                                    <span>Medium (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="tannines" value="3" required>
+                                    <span>Hoog (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Zuur</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="zuur" value="1" required>
+                                    <span>Laag (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="zuur" value="2" required>
+                                    <span>Medium (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="zuur" value="3" required>
+                                    <span>Hoog (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Alcohol</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="alcohol" value="1" required>
+                                    <span>Laag (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="alcohol" value="2" required>
+                                    <span>Medium (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="alcohol" value="3" required>
+                                    <span>Hoog (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Body</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="body" value="Laag" required>
+                                    <span>Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="body" value="Medium" required>
+                                    <span>Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="body" value="Hoog" required>
+                                    <span>Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Afdronk</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="afdronk" value="Laag" onchange="app.updateStarCalculation()" required>
+                                    <span>⏱️ Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="afdronk" value="Medium" onchange="app.updateStarCalculation()" required>
+                                    <span>⏱️⏱️ Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="afdronk" value="Hoog" onchange="app.updateStarCalculation()" required>
+                                    <span>⏱️⏱️⏱️ Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Beoordeling -->
+                    <div class="form-section beoordeling-section">
+                        <h3>⭐ Beoordeling</h3>
+                        
+                        <div id="automaticStarsDisplay" class="automatic-stars-display">
+                            <div class="stars-preview">
+                                <div id="starPreview" class="star-preview-large"></div>
+                            </div>
+                            <div id="starExplanation" class="star-explanation"></div>
+                        </div>
+
+                        <div class="form-group manual-stars-group" id="manualStarsGroup" style="display: none;">
+                            <label class="form-label">Handmatige sterren (optioneel)</label>
+                            <p class="form-helper">Je kunt maximaal 3 hele sterren (6 halve sterren) handmatig toevoegen aan de automatische sterren</p>
+                            
+                            <div class="manual-star-item">
+                                <label class="checkbox-label manual-star-checkbox">
+                                    <input type="checkbox" name="manual_star_1" onchange="app.updateStarCalculation()">
+                                    <span class="manual-star-icon">⭐ Handmatige ster 1</span>
+                                </label>
+                                <div class="form-group" id="manualReason1Group" style="display: none; margin-top: 8px;">
+                                    <label class="form-label">Waarom deze ster?</label>
+                                    <textarea id="manualReason1" class="form-control" rows="2" placeholder="Bijv. Uitzonderlijke complexiteit..."></textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="manual-star-item">
+                                <label class="checkbox-label manual-star-checkbox">
+                                    <input type="checkbox" name="manual_star_2" onchange="app.updateStarCalculation()">
+                                    <span class="manual-star-icon">⭐ Handmatige ster 2</span>
+                                </label>
+                                <div class="form-group" id="manualReason2Group" style="display: none; margin-top: 8px;">
+                                    <label class="form-label">Waarom deze ster?</label>
+                                    <textarea id="manualReason2" class="form-control" rows="2" placeholder="Bijv. Perfecte balans..."></textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="manual-star-item">
+                                <label class="checkbox-label manual-star-checkbox">
+                                    <input type="checkbox" name="manual_star_3" onchange="app.updateStarCalculation()">
+                                    <span class="manual-star-icon">⭐ Handmatige ster 3</span>
+                                </label>
+                                <div class="form-group" id="manualReason3Group" style="display: none; margin-top: 8px;">
+                                    <label class="form-label">Waarom deze ster?</label>
+                                    <textarea id="manualReason3" class="form-control" rows="2" placeholder="Bijv. Zeldzame kwaliteit..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Notities</label>
+                            <textarea id="tastingNotities" class="form-control" rows="4" placeholder="Aanvullende opmerkingen..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn--secondary" onclick="app.backFromTastingForm()">Annuleren</button>
+                        <button type="submit" class="btn btn--primary">Opslaan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tasting Note Detail View -->
+        <div id="tastingDetailView" class="view" style="display: none;">
+            <header class="app-header">
+                <button class="btn-back" onclick="app.backToWineDetail()">← Terug</button>
+                <h1>Proefnotitie</h1>
+            </header>
+            
+            <div class="detail-container">
+                <div class="tasting-detail-card card">
+                    <div class="card__body">
+                        <div id="tastingDetailContent"></div>
+                        <div class="wine-actions">
+                            <button class="btn btn--outline" onclick="app.deleteTastingNote()">Verwijderen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
