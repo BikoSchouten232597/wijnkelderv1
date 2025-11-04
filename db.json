@@ -41,8 +41,20 @@
     { "id": 1, "name": "Kelder", "temperature": 12 },
     { "id": 2, "name": "Klimaatkast", "temperature": 18 }
   ],
-  "users": [
-    { "id": 1, "name": "Jij", "email": "jouw@email.nl", "color": "#e74c3c" },
-    { "id": 2, "name": "Partner", "email": "partner@email.nl", "color": "#3498db" }
-  ]
+    "users": [
+    {
+      "id": 1,
+      "name": "Hoofd",
+      "email": "hoofd@email.nl",
+      "color": "#e74c3c",
+      "role": "admin"
+    },
+    {
+      "id": 2,
+      "name": "Jij",
+      "email": "jij@email.nl",
+      "color": "#3498db",
+      "role": "user"
+    }
+  ],
 }
