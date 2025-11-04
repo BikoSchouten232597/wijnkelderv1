@@ -46,7 +46,7 @@
       "id": 1,
       "name": "Hoofd",
       "email": "hoofd@email.nl",
-      "password": "wachtwoord_gehasht",
+      "password": "",
       "color": "#e74c3c",
       "role": "admin"
     },
