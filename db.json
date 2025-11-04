@@ -2,14 +2,17 @@
   "wines": [
     {
       "id": 1000,
+      "user_id": 1,
       "naam": "Reserva",
       "wijnhuis": "Marqués de Riscal",
       "vintage": 2018,
       "streek": "Rioja",
-      "druif": "Tempranillo, Graciano",
+      "druif": "Tempranillo",
       "kleur": "Rood",
-      "locatie": "Kelder",
-      "aantal_flessen": 3
+      "locatie_id": 1,
+      "aantal_flessen": 3,
+      "price_per_bottle": 25.50,
+      "photo_base64": null
     }
   ],
   "tastingNotes": [
@@ -33,5 +36,13 @@
       "manual_stars": 1,
       "manual_star_reasons": ["Perfecte balans"]
     }
+  ],
+  "locations": [
+    { "id": 1, "name": "Kelder", "temperature": 12 },
+    { "id": 2, "name": "Klimaatkast", "temperature": 18 }
+  ],
+  "users": [
+    { "id": 1, "name": "Jij", "email": "jouw@email.nl", "color": "#e74c3c" },
+    { "id": 2, "name": "Partner", "email": "partner@email.nl", "color": "#3498db" }
   ]
 }
