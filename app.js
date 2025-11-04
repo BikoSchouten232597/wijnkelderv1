@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -840,7 +840,8 @@ const app = {
     appState.currentView = 'collection';
     appState.currentWineId = null;
     appState.currentTastingId = null;
-    appState.editingWineId = null;
+    appState.editingWineId = null; // Clear edit state when returning to collection
+    console.log(`[showCollection] Cleared editingWineId - back to collection view`);
     this.hideAllViews();
     this.updateNavigation('collection');
     document.getElementById('collectionView').style.display = 'block';
@@ -885,7 +886,10 @@ const app = {
     }
     
     if (wineId) {
+      // EDIT MODE: Set editing ID to trigger PUT request on save
       appState.editingWineId = wineId;
+      console.log(`[showWineForm] EDIT MODE - editingWineId set to: ${wineId}`);
+      console.log(`[showWineForm] Save will use PUT /wines/${wineId}`);
       const wine = this.getWineById(wineId);
       if (!wine) {
         this.showToast('Wijn niet gevonden');
@@ -920,7 +924,10 @@ const app = {
         }
       }, 100);
     } else {
+      // CREATE MODE: Clear editing ID to trigger POST request on save
       appState.editingWineId = null;
+      console.log(`[showWineForm] CREATE MODE - editingWineId cleared`);
+      console.log(`[showWineForm] Save will use POST /wines`);
       document.getElementById('wineFormTitle').textContent = 'Nieuwe Wijn';
       document.getElementById('wineForm').reset();
       document.getElementById('wineId').value = '';
@@ -1031,7 +1038,10 @@ const app = {
     const today = new Date().toISOString().split('T')[0];
     
     if (tastingId) {
+      // EDIT MODE for tasting note
       appState.currentTastingId = tastingId;
+      console.log(`[showTastingForm] EDIT MODE - editing tasting note ID: ${tastingId}`);
+      console.log(`[showTastingForm] Save will use PUT /tastingNotes/${tastingId}`);
       const tasting = this.getTastingById(tastingId);
       if (!tasting) {
         this.showToast('Proefnotitie niet gevonden');
@@ -1041,7 +1051,10 @@ const app = {
       appState.currentWineId = tasting.wine_id;
       this.populateTastingForm(tasting);
     } else {
+      // CREATE MODE for tasting note
       appState.currentTastingId = null;
+      console.log(`[showTastingForm] CREATE MODE - creating new tasting note`);
+      console.log(`[showTastingForm] Save will use POST /tastingNotes`);
       document.getElementById('tastingForm').reset();
       document.getElementById('tastingId').value = '';
       document.getElementById('tastingDatum').value = today;
@@ -1222,10 +1235,22 @@ const app = {
 
     try {
       if (appState.editingWineId) {
-        // Editing existing wine - use existing ID
-        const existingWine = this.getWineById(appState.editingWineId);
+        // ============================================================
+        // EDIT MODE: UPDATE existing wine using PUT (NOT DELETE!)
+        // ============================================================
+        const editingId = appState.editingWineId;
+        console.log(`[saveWine] *** EDIT MODE DETECTED ***`);
+        console.log(`[saveWine] Editing wine ID: ${editingId}`);
+        console.log(`[saveWine] Method: PUT (update)`);
+        console.log(`[saveWine] Endpoint: ${API_CONFIG.endpoints.wines}/${editingId}`);
+        
+        const existingWine = this.getWineById(editingId);
+        if (!existingWine) {
+          throw new Error(`Wijn met ID ${editingId} niet gevonden`);
+        }
+        
         const wineData = { 
-          id: appState.editingWineId,
+          id: editingId,
           user_id: existingWine.user_id || appState.currentUserId,
           naam, 
           wijnhuis, 
@@ -1239,22 +1264,30 @@ const app = {
           photo_base64: appState.currentPhotoBase64 || existingWine.photo_base64 || null
         };
         
-        console.log(`[saveWine] Updating wine ID ${appState.editingWineId}`, wineData);
+        console.log(`[saveWine] Calling api.put() with data:`, wineData);
         
-        const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, wineData);
+        const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${editingId}`, wineData);
         updatedWine.id = typeof updatedWine.id === 'string' ? parseInt(updatedWine.id, 10) : updatedWine.id;
         
-        const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
+        const wineIndex = appState.wines.findIndex(w => w.id === editingId);
         if (wineIndex !== -1) {
           appState.wines[wineIndex] = updatedWine;
+          console.log(`[saveWine] ✓ Wine updated successfully in local state`);
         } else {
-          console.warn(`[saveWine] Wine with ID ${appState.editingWineId} not found in local state after update`);
+          console.warn(`[saveWine] Wine with ID ${editingId} not found in local state after update`);
         }
         
-        console.log(`[saveWine] Updated wine ID ${appState.editingWineId}`);
+        console.log(`[saveWine] ✓ UPDATE COMPLETE - Wine ID ${editingId} updated via PUT`);
+        appState.editingWineId = null; // Clear editing state
         this.showToast('Wijn bijgewerkt', 'success');
       } else {
-        // Creating new wine - generate ID based on max existing ID + 1
+        // ============================================================
+        // CREATE MODE: Add new wine using POST
+        // ============================================================
+        console.log(`[saveWine] *** CREATE MODE DETECTED ***`);
+        console.log(`[saveWine] Creating new wine`);
+        console.log(`[saveWine] Method: POST (create)`);
+        
         const numericId = getNextWineId(appState.wines);
         
         const wineData = {
@@ -1272,13 +1305,14 @@ const app = {
           photo_base64: appState.currentPhotoBase64 || null
         };
         
-        console.log(`[saveWine] Creating new wine with ID: ${numericId}`);
+        console.log(`[saveWine] Generated new wine ID: ${numericId}`);
+        console.log(`[saveWine] Calling api.post() with data:`, wineData);
         
         const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
         newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
-        console.log(`[saveWine] Wine created with ID: ${newWine.id}`);
         appState.wines.push(newWine);
         
+        console.log(`[saveWine] ✓ CREATE COMPLETE - Wine ID ${newWine.id} created via POST`);
         this.showToast('Wijn toegevoegd', 'success');
       }
 
@@ -1302,8 +1336,10 @@ const app = {
       this.showToast('Geen wijn geselecteerd');
       return;
     }
-    console.log(`[editWine] Editing wine ID: ${appState.currentWineId}`);
-    this.showWineForm(appState.currentWineId);
+    const wineId = appState.currentWineId;
+    console.log(`[editWine] Opening edit form for wine ID: ${wineId}`);
+    console.log(`[editWine] This will be an UPDATE operation (PUT), not DELETE`);
+    this.showWineForm(wineId);
   },
 
   editTastingNote: function() {
@@ -1316,6 +1352,14 @@ const app = {
   },
 
   deleteWine: async function() {
+    // ============================================================
+    // DELETE OPERATION: This is ONLY called from delete button
+    // NEVER from edit/save operations!
+    // ============================================================
+    console.log(`[deleteWine] *** DELETE OPERATION STARTED ***`);
+    console.log(`[deleteWine] This is SEPARATE from edit operations`);
+    console.log(`[deleteWine] Method: DELETE (remove)`);
+    
     if (!appState.currentWineId) {
       this.showToast('Geen wijn geselecteerd');
       return;
@@ -1327,6 +1371,8 @@ const app = {
       this.showCollection();
       return;
     }
+    
+    console.log(`[deleteWine] Deleting wine ID: ${appState.currentWineId} (${wine.naam})`);
     
     const tastingCount = this.getTastingsForWine(appState.currentWineId).length;
     const confirmMessage = tastingCount > 0 
@@ -1683,10 +1729,21 @@ const app = {
 
     try {
       if (appState.currentTastingId) {
-        // Editing existing tasting note - use existing ID
-        const existingTasting = this.getTastingById(appState.currentTastingId);
+        // ============================================================
+        // EDIT MODE: UPDATE existing tasting note using PUT
+        // ============================================================
+        const editingId = appState.currentTastingId;
+        console.log(`[saveTastingNote] *** EDIT MODE DETECTED ***`);
+        console.log(`[saveTastingNote] Editing tasting note ID: ${editingId}`);
+        console.log(`[saveTastingNote] Method: PUT (update)`);
+        
+        const existingTasting = this.getTastingById(editingId);
+        if (!existingTasting) {
+          throw new Error(`Proefnotitie met ID ${editingId} niet gevonden`);
+        }
+        
         const tastingData = {
-          id: appState.currentTastingId,
+          id: editingId,
           wine_id: appState.currentWineId,
           user_id: existingTasting.user_id || appState.currentUserId,
           datum: document.getElementById('tastingDatum').value,
@@ -1709,26 +1766,35 @@ const app = {
           notities: document.getElementById('tastingNotities').value.trim()
         };
         
-        console.log(`[saveTastingNote] Updating tasting note ID ${appState.currentTastingId}`, tastingData);
+        console.log(`[saveTastingNote] Calling api.put() with data:`, tastingData);
         
         const updatedTasting = await api.put(
-          `${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`,
+          `${API_CONFIG.endpoints.tastingNotes}/${editingId}`,
           tastingData
         );
         
         updatedTasting.id = typeof updatedTasting.id === 'string' ? parseInt(updatedTasting.id, 10) : updatedTasting.id;
         updatedTasting.wine_id = typeof updatedTasting.wine_id === 'string' ? parseInt(updatedTasting.wine_id, 10) : updatedTasting.wine_id;
         
-        const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
+        const tastingIndex = appState.tastingNotes.findIndex(t => t.id === editingId);
         if (tastingIndex !== -1) {
           appState.tastingNotes[tastingIndex] = updatedTasting;
+          console.log(`[saveTastingNote] ✓ Tasting note updated successfully in local state`);
         }
         
-        console.log(`[saveTastingNote] Updated tasting note ID ${appState.currentTastingId}`);
+        console.log(`[saveTastingNote] ✓ UPDATE COMPLETE - Tasting note ID ${editingId} updated via PUT`);
+        appState.currentTastingId = null; // Clear editing state
         this.showToast('Proefnotitie bijgewerkt', 'success');
       } else {
-        // Creating new tasting note - generate ID based on max existing ID + 1
+        // ============================================================
+        // CREATE MODE: Add new tasting note using POST
+        // ============================================================
+        console.log(`[saveTastingNote] *** CREATE MODE DETECTED ***`);
+        console.log(`[saveTastingNote] Creating new tasting note`);
+        console.log(`[saveTastingNote] Method: POST (create)`);
+        
         const numericId = getNextTastingNoteId(appState.tastingNotes);
+        console.log(`[saveTastingNote] Generated new tasting note ID: ${numericId}`);
         
         const tastingData = {
           id: numericId,
@@ -1754,13 +1820,14 @@ const app = {
           notities: document.getElementById('tastingNotities').value.trim()
         };
         
-        console.log(`[saveTastingNote] Creating new tasting note with ID: ${numericId}`);
+        console.log(`[saveTastingNote] Calling api.post() with data:`, tastingData);
         
         const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
         newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
         newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
-        console.log(`[saveTastingNote] Tasting note created with ID: ${newTasting.id}`);
         appState.tastingNotes.push(newTasting);
+        
+        console.log(`[saveTastingNote] ✓ CREATE COMPLETE - Tasting note ID ${newTasting.id} created via POST`);
         
         this.showToast('Proefnotitie opgeslagen', 'success');
       }
@@ -1777,6 +1844,14 @@ const app = {
   },
 
   deleteTastingNote: async function() {
+    // ============================================================
+    // DELETE OPERATION: This is ONLY called from delete button
+    // NEVER from edit/save operations!
+    // ============================================================
+    console.log(`[deleteTastingNote] *** DELETE OPERATION STARTED ***`);
+    console.log(`[deleteTastingNote] This is SEPARATE from edit operations`);
+    console.log(`[deleteTastingNote] Method: DELETE (remove)`);
+    
     if (!appState.currentTastingId) {
       this.showToast('Geen proefnotitie geselecteerd');
       return;
@@ -1787,6 +1862,8 @@ const app = {
       this.showToast('Proefnotitie niet gevonden');
       return;
     }
+    
+    console.log(`[deleteTastingNote] Deleting tasting note ID: ${appState.currentTastingId}`);
     
     if (confirm('Weet je zeker dat je deze proefnotitie wilt verwijderen?')) {
       showLoadingOverlay('Proefnotitie verwijderen...');
