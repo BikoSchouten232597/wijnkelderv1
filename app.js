@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -350,17 +350,15 @@ const api = {
 // ============================================================================
 // PASSWORD HASHING (SHA-256)
 // ============================================================================
-async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + 'wijnkelder_salt_2024');
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
+function hashPassword(password) {
+  // Use sha256 library from CDN (synchronous)
+  const salt = 'wijnkelder_salt_2025';
+  const hashed = sha256(password + salt);
+  return hashed;
 }
 
-async function verifyPassword(inputPassword, storedHash) {
-  const inputHash = await hashPassword(inputPassword);
+function verifyPassword(inputPassword, storedHash) {
+  const inputHash = hashPassword(inputPassword);
   return inputHash === storedHash;
 }
 
@@ -649,7 +647,7 @@ const app = {
       
       // Ensure default admin user exists with password
       if (appState.users.length === 0) {
-        const defaultPasswordHash = await hashPassword('demo123');
+        const defaultPasswordHash = hashPassword('demo123');
         const defaultUser = { id: 1, name: "Hoofd", email: "admin@email.nl", color: "#e74c3c", role: "admin", password: defaultPasswordHash };
         try {
           const newUser = await api.post('/users', defaultUser);
@@ -663,7 +661,7 @@ const app = {
       // Ensure all users have passwords (for existing databases)
       for (let user of appState.users) {
         if (!user.password) {
-          const defaultPasswordHash = await hashPassword('demo123');
+          const defaultPasswordHash = hashPassword('demo123');
           user.password = defaultPasswordHash;
           try {
             await api.put(`/users/${user.id}`, user);
@@ -715,7 +713,7 @@ const app = {
     this.loadDataFromAPI();
   },
 
-  loadDummyData: async function() {
+  loadDummyData: function() {
     const modal = document.getElementById('offlineModeModal');
     if (modal) {
       modal.style.display = 'none';
@@ -723,8 +721,8 @@ const app = {
     
     const dummyData = generateDummyData();
     
-    // Add passwords to users
-    const defaultPasswordHash = await hashPassword('demo123');
+    // Add passwords to users (synchronous)
+    const defaultPasswordHash = hashPassword('demo123');
     dummyData.users = dummyData.users.map(u => ({
       ...u,
       password: defaultPasswordHash
@@ -800,7 +798,7 @@ const app = {
     modal.style.display = 'flex';
   },
 
-  handleLogin: async function(event) {
+  handleLogin: function(event) {
     event.preventDefault();
     
     const userId = parseInt(document.getElementById('loginUsername').value);
@@ -820,8 +818,8 @@ const app = {
       return;
     }
     
-    // Verify password
-    const isValid = await verifyPassword(password, user.password);
+    // Verify password (synchronous)
+    const isValid = verifyPassword(password, user.password);
     
     if (!isValid) {
       errorDiv.textContent = 'Wachtwoord onjuist';
@@ -876,8 +874,8 @@ const app = {
       return;
     }
     
-    // Check current password
-    const isValid = await verifyPassword(currentPassword, currentUser.password);
+    // Check current password (synchronous)
+    const isValid = verifyPassword(currentPassword, currentUser.password);
     if (!isValid) {
       this.showToast('Huidig wachtwoord onjuist', 'error');
       document.getElementById('currentPassword').value = '';
@@ -885,8 +883,8 @@ const app = {
       return;
     }
     
-    // Change password
-    const newPasswordHash = await hashPassword(newPassword);
+    // Change password (synchronous)
+    const newPasswordHash = hashPassword(newPassword);
     currentUser.password = newPasswordHash;
     
     try {
@@ -3776,9 +3774,9 @@ const app = {
           password: existingUser.password // Keep existing password
         };
         
-        // Update password if provided
+        // Update password if provided (synchronous)
         if (password) {
-          userData.password = await hashPassword(password);
+          userData.password = hashPassword(password);
         }
         
         console.log(`[saveUser] Updating user ID ${userId}`, userData);
@@ -3789,9 +3787,9 @@ const app = {
         
         this.showToast(password ? 'Gebruiker en wachtwoord bijgewerkt' : 'Gebruiker bijgewerkt', 'success');
       } else {
-        // Create new user
+        // Create new user (synchronous)
         const newId = this.getNextUserId();
-        const passwordHash = await hashPassword(password);
+        const passwordHash = hashPassword(password);
         const userData = { id: newId, name, email, color, role: 'user', password: passwordHash };
         
         console.log(`[saveUser] Creating new user with ID ${newId}`, userData);
