@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://127.0.0.1:3001',
+  baseURL: 'http://31.97.34.22:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
