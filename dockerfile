@@ -7,6 +7,8 @@ WORKDIR /app
 # Kopieer db.json naar container
 COPY ./db.json /app/db.json
 
+COPY ./cors-middleware.js /app/cors-middleware.js
+
 # Installeer json-server globaal
 RUN npm install -g json-server
 
