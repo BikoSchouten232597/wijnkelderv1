@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -49,6 +49,10 @@ const api = {
   },
 
   async get(endpoint) {
+    if (appState.isOfflineMode) {
+      return this.getOffline(endpoint);
+    }
+    
     const url = `${API_CONFIG.baseURL}${endpoint}`;
     if (API_CONFIG.debug) {
       console.log(`[API GET] Fetching: ${url}`);
@@ -91,7 +95,44 @@ const api = {
     }
   },
 
+  getOffline(endpoint) {
+    console.log(`[API GET Offline] ${endpoint}`);
+    if (endpoint.includes('/wines')) {
+      if (endpoint.match(/\/wines\/\d+$/)) {
+        const id = parseInt(endpoint.split('/').pop());
+        return Promise.resolve(appState.wines.find(w => w.id === id));
+      }
+      return Promise.resolve(appState.wines);
+    }
+    if (endpoint.includes('/tastingNotes')) {
+      if (endpoint.match(/\/tastingNotes\/\d+$/)) {
+        const id = parseInt(endpoint.split('/').pop());
+        return Promise.resolve(appState.tastingNotes.find(t => t.id === id));
+      }
+      return Promise.resolve(appState.tastingNotes);
+    }
+    if (endpoint.includes('/locations')) {
+      if (endpoint.match(/\/locations\/\d+$/)) {
+        const id = parseInt(endpoint.split('/').pop());
+        return Promise.resolve(appState.locations.find(l => l.id === id));
+      }
+      return Promise.resolve(appState.locations);
+    }
+    if (endpoint.includes('/users')) {
+      if (endpoint.match(/\/users\/\d+$/)) {
+        const id = parseInt(endpoint.split('/').pop());
+        return Promise.resolve(appState.users.find(u => u.id === id));
+      }
+      return Promise.resolve(appState.users);
+    }
+    return Promise.resolve([]);
+  },
+
   async post(endpoint, data) {
+    if (appState.isOfflineMode) {
+      return this.postOffline(endpoint, data);
+    }
+    
     const url = `${API_CONFIG.baseURL}${endpoint}`;
     if (API_CONFIG.debug) {
       console.log(`[API POST] Posting to: ${url}`, data);
@@ -130,7 +171,33 @@ const api = {
     }
   },
 
+  postOffline(endpoint, data) {
+    console.log(`[API POST Offline] ${endpoint}`, data);
+    const newData = deepCopy(data);
+    if (endpoint.includes('/wines')) {
+      appState.wines.push(newData);
+      return Promise.resolve(newData);
+    }
+    if (endpoint.includes('/tastingNotes')) {
+      appState.tastingNotes.push(newData);
+      return Promise.resolve(newData);
+    }
+    if (endpoint.includes('/locations')) {
+      appState.locations.push(newData);
+      return Promise.resolve(newData);
+    }
+    if (endpoint.includes('/users')) {
+      appState.users.push(newData);
+      return Promise.resolve(newData);
+    }
+    return Promise.resolve(newData);
+  },
+
   async put(endpoint, data) {
+    if (appState.isOfflineMode) {
+      return this.putOffline(endpoint, data);
+    }
+    
     const url = `${API_CONFIG.baseURL}${endpoint}`;
     if (API_CONFIG.debug) {
       console.log(`[API PUT] Updating: ${url}`, data);
@@ -173,7 +240,49 @@ const api = {
     }
   },
 
+  putOffline(endpoint, data) {
+    console.log(`[API PUT Offline] ${endpoint}`, data);
+    const updatedData = deepCopy(data);
+    if (endpoint.includes('/wines/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      const index = appState.wines.findIndex(w => w.id === id);
+      if (index !== -1) {
+        appState.wines[index] = updatedData;
+      }
+      return Promise.resolve(updatedData);
+    }
+    if (endpoint.includes('/tastingNotes/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      const index = appState.tastingNotes.findIndex(t => t.id === id);
+      if (index !== -1) {
+        appState.tastingNotes[index] = updatedData;
+      }
+      return Promise.resolve(updatedData);
+    }
+    if (endpoint.includes('/locations/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      const index = appState.locations.findIndex(l => l.id === id);
+      if (index !== -1) {
+        appState.locations[index] = updatedData;
+      }
+      return Promise.resolve(updatedData);
+    }
+    if (endpoint.includes('/users/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      const index = appState.users.findIndex(u => u.id === id);
+      if (index !== -1) {
+        appState.users[index] = updatedData;
+      }
+      return Promise.resolve(updatedData);
+    }
+    return Promise.resolve(updatedData);
+  },
+
   async delete(endpoint) {
+    if (appState.isOfflineMode) {
+      return this.deleteOffline(endpoint);
+    }
+    
     const url = `${API_CONFIG.baseURL}${endpoint}`;
     if (API_CONFIG.debug) {
       console.log(`[API DELETE] Deleting: ${url}`);
@@ -210,6 +319,31 @@ const api = {
       console.error(`[API DELETE] Error for ${url}:`, error);
       throw error;
     }
+  },
+
+  deleteOffline(endpoint) {
+    console.log(`[API DELETE Offline] ${endpoint}`);
+    if (endpoint.includes('/wines/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      appState.wines = appState.wines.filter(w => w.id !== id);
+      return Promise.resolve(true);
+    }
+    if (endpoint.includes('/tastingNotes/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      appState.tastingNotes = appState.tastingNotes.filter(t => t.id !== id);
+      return Promise.resolve(true);
+    }
+    if (endpoint.includes('/locations/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      appState.locations = appState.locations.filter(l => l.id !== id);
+      return Promise.resolve(true);
+    }
+    if (endpoint.includes('/users/')) {
+      const id = parseInt(endpoint.split('/').pop());
+      appState.users = appState.users.filter(u => u.id !== id);
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(true);
   }
 };
 
@@ -231,6 +365,7 @@ const appState = {
   editingWineId: null,
   currentStockFilter: 'all',
   currentUserFilter: 'all', // 'all' or 'mine'
+  showOnlyMyWines: false,
   viewHistory: [],
   currentPhotoBase64: null // Temporary storage for photo during form editing
 };
@@ -416,6 +551,13 @@ const app = {
   init: async function() {
     console.log('Initializing Wine Cellar App...');
     await this.loadDataFromAPI();
+    
+    // Show user selector on first load if multiple users or no user selected
+    setTimeout(() => {
+      if (!appState.currentUserId || appState.users.length > 1) {
+        this.showUserSelector();
+      }
+    }, 500);
   },
 
   async loadDataFromAPI() {
@@ -560,17 +702,24 @@ const app = {
     const modal = document.getElementById('userSelectorModal');
     if (!modal) return;
     
+    if (appState.users.length === 0) {
+      console.warn('[showUserSelector] No users available');
+      return;
+    }
+    
     const listEl = document.getElementById('userSelectorList');
     if (!listEl) return;
     
     listEl.innerHTML = appState.users.map(user => {
       const isActive = user.id === appState.currentUserId;
+      const wineCount = appState.wines.filter(w => w.user_id === user.id).length;
       return `
         <div class="user-selector-item ${isActive ? 'active' : ''}" onclick="app.selectUser(${user.id})">
           <div class="user-color-dot" style="background: ${user.color};"></div>
           <div class="user-selector-info">
             <strong>${user.name}</strong>
             ${user.email ? `<small>${user.email}</small>` : ''}
+            <small style="display: block; margin-top: 4px; color: var(--color-text-secondary);">${wineCount} wijn${wineCount !== 1 ? 'en' : ''}</small>
           </div>
           ${isActive ? '<span>✓</span>' : ''}
         </div>
@@ -581,6 +730,7 @@ const app = {
   },
 
   selectUser: function(userId) {
+    const previousUserId = appState.currentUserId;
     appState.currentUserId = userId;
     this.updateCurrentUserDisplay();
     
@@ -589,8 +739,17 @@ const app = {
       modal.style.display = 'none';
     }
     
+    // If user filter is enabled and user changed, refresh view
+    if (appState.showOnlyMyWines && previousUserId !== userId) {
+      console.log(`[selectUser] User changed from ${previousUserId} to ${userId}, refreshing filtered view`);
+    }
+    
     this.showCollection();
-    this.showToast('Gebruiker gewisseld', 'success');
+    
+    const user = appState.users.find(u => u.id === userId);
+    if (user) {
+      this.showToast(`Ingelogd als ${user.name}`, 'success');
+    }
   },
 
   getNextUserId: function() {
@@ -616,6 +775,12 @@ const app = {
   getFilteredWines: function() {
     let filtered = [...appState.wines];
     
+    // Filter by user if "Mijn wijnen" is enabled
+    if (appState.showOnlyMyWines && appState.currentUserId) {
+      filtered = filtered.filter(w => w.user_id === appState.currentUserId);
+    }
+    
+    // Filter by stock status
     if (appState.currentStockFilter === 'in_stock') {
       filtered = filtered.filter(w => w.aantal_flessen > 0);
     } else if (appState.currentStockFilter === 'out_of_stock') {
@@ -623,6 +788,15 @@ const app = {
     }
     
     return filtered;
+  },
+
+  toggleMyWinesFilter: function() {
+    const checkbox = document.getElementById('myWinesFilter');
+    if (checkbox) {
+      appState.showOnlyMyWines = checkbox.checked;
+      console.log(`[toggleMyWinesFilter] Show only my wines: ${appState.showOnlyMyWines}`);
+      this.filterWines();
+    }
   },
 
   getWineById: function(id) {
@@ -670,6 +844,19 @@ const app = {
     this.hideAllViews();
     this.updateNavigation('collection');
     document.getElementById('collectionView').style.display = 'block';
+    
+    // Reset search input
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+      searchInput.value = '';
+    }
+    
+    // Restore "Mijn wijnen" filter state
+    const myWinesCheckbox = document.getElementById('myWinesFilter');
+    if (myWinesCheckbox) {
+      myWinesCheckbox.checked = appState.showOnlyMyWines;
+    }
+    
     this.renderWines();
   },
 
@@ -957,21 +1144,75 @@ const app = {
     
     const naam = document.getElementById('wineNaam').value.trim();
     const wijnhuis = document.getElementById('wineWijnhuis').value.trim();
-    const vintage = parseInt(document.getElementById('wineVintage').value);
+    const vintageInput = document.getElementById('wineVintage').value;
+    const vintage = parseInt(vintageInput);
     const streek = document.getElementById('wineStreek').value.trim();
     const druif = document.getElementById('wineDruif').value.trim();
     const kleur = document.getElementById('wineKleur').value;
     const locatie = document.getElementById('wineLocatie').value;
-    const aantal_flessen = parseInt(document.getElementById('wineAantalFlessen').value);
-    const prijs = parseFloat(document.getElementById('winePrijs').value) || 0;
+    const aantalInput = document.getElementById('wineAantalFlessen').value;
+    const aantal_flessen = parseInt(aantalInput);
+    const prijsInput = document.getElementById('winePrijs').value;
+    const prijs = prijsInput ? parseFloat(prijsInput) : 0;
     
-    if (!naam || !wijnhuis || !vintage || !streek || !druif || !kleur || !locatie) {
-      this.showToast('Vul alle verplichte velden in');
+    // Validation
+    if (!naam) {
+      this.showToast('Vul een naam in');
+      document.getElementById('wineNaam').focus();
       return;
     }
     
-    if (aantal_flessen < CONFIG.minBottles || aantal_flessen > CONFIG.maxBottles) {
-      this.showToast(`Aantal flessen moet tussen ${CONFIG.minBottles} en ${CONFIG.maxBottles} zijn`);
+    if (!wijnhuis) {
+      this.showToast('Vul een wijnhuis in');
+      document.getElementById('wineWijnhuis').focus();
+      return;
+    }
+    
+    if (!vintageInput || isNaN(vintage) || vintage < 1900 || vintage > 2099) {
+      this.showToast('Vul een geldig jaar in (1900-2099)');
+      document.getElementById('wineVintage').focus();
+      return;
+    }
+    
+    if (!streek) {
+      this.showToast('Vul een streek in');
+      document.getElementById('wineStreek').focus();
+      return;
+    }
+    
+    if (!druif) {
+      this.showToast('Vul een druif in');
+      document.getElementById('wineDruif').focus();
+      return;
+    }
+    
+    if (!kleur) {
+      this.showToast('Selecteer een kleur');
+      document.getElementById('wineKleur').focus();
+      return;
+    }
+    
+    if (!locatie) {
+      this.showToast('Selecteer een locatie');
+      document.getElementById('wineLocatie').focus();
+      return;
+    }
+    
+    if (!aantalInput || isNaN(aantal_flessen) || aantal_flessen < CONFIG.minBottles) {
+      this.showToast(`Aantal flessen moet minimaal ${CONFIG.minBottles} zijn`);
+      document.getElementById('wineAantalFlessen').focus();
+      return;
+    }
+    
+    if (aantal_flessen > CONFIG.maxBottles) {
+      this.showToast(`Aantal flessen mag maximaal ${CONFIG.maxBottles} zijn`);
+      document.getElementById('wineAantalFlessen').focus();
+      return;
+    }
+    
+    if (prijsInput && (isNaN(prijs) || prijs < 0)) {
+      this.showToast('Prijs moet een positief getal zijn');
+      document.getElementById('winePrijs').focus();
       return;
     }
     
@@ -998,20 +1239,16 @@ const app = {
           photo_base64: appState.currentPhotoBase64 || existingWine.photo_base64 || null
         };
         
-        if (!appState.isOfflineMode) {
-          const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, wineData);
-          updatedWine.id = typeof updatedWine.id === 'string' ? parseInt(updatedWine.id, 10) : updatedWine.id;
-          
-          const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
-          if (wineIndex !== -1) {
-            appState.wines[wineIndex] = updatedWine;
-          }
+        console.log(`[saveWine] Updating wine ID ${appState.editingWineId}`, wineData);
+        
+        const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, wineData);
+        updatedWine.id = typeof updatedWine.id === 'string' ? parseInt(updatedWine.id, 10) : updatedWine.id;
+        
+        const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
+        if (wineIndex !== -1) {
+          appState.wines[wineIndex] = updatedWine;
         } else {
-          // Offline mode - update local state only
-          const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
-          if (wineIndex !== -1) {
-            appState.wines[wineIndex] = wineData;
-          }
+          console.warn(`[saveWine] Wine with ID ${appState.editingWineId} not found in local state after update`);
         }
         
         console.log(`[saveWine] Updated wine ID ${appState.editingWineId}`);
@@ -1037,15 +1274,10 @@ const app = {
         
         console.log(`[saveWine] Creating new wine with ID: ${numericId}`);
         
-        if (!appState.isOfflineMode) {
-          const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
-          newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
-          console.log(`[saveWine] Wine created with ID: ${newWine.id}`);
-          appState.wines.push(newWine);
-        } else {
-          // Offline mode - add to local state only
-          appState.wines.push(wineData);
-        }
+        const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
+        newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
+        console.log(`[saveWine] Wine created with ID: ${newWine.id}`);
+        appState.wines.push(newWine);
         
         this.showToast('Wijn toegevoegd', 'success');
       }
@@ -1105,14 +1337,17 @@ const app = {
       showLoadingOverlay('Wijn verwijderen...');
       
       try {
+        console.log(`[deleteWine] Deleting wine ID ${appState.currentWineId}`);
+        
+        // Delete associated tasting notes first
+        const tastingsToDelete = this.getTastingsForWine(appState.currentWineId);
+        for (const tasting of tastingsToDelete) {
+          console.log(`[deleteWine] Deleting tasting note ID ${tasting.id}`);
+          await api.delete(`${API_CONFIG.endpoints.tastingNotes}/${tasting.id}`);
+        }
+        
         // Delete wine
         await api.delete(`${API_CONFIG.endpoints.wines}/${appState.currentWineId}`);
-        
-        // Delete associated tasting notes
-        const tastingsToDelete = this.getTastingsForWine(appState.currentWineId);
-        await Promise.all(
-          tastingsToDelete.map(t => api.delete(`${API_CONFIG.endpoints.tastingNotes}/${t.id}`))
-        );
         
         // Update local state
         appState.wines = appState.wines.filter(w => w.id !== appState.currentWineId);
@@ -1474,25 +1709,19 @@ const app = {
           notities: document.getElementById('tastingNotities').value.trim()
         };
         
-        if (!appState.isOfflineMode) {
-          const updatedTasting = await api.put(
-            `${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`,
-            tastingData
-          );
-          
-          updatedTasting.id = typeof updatedTasting.id === 'string' ? parseInt(updatedTasting.id, 10) : updatedTasting.id;
-          updatedTasting.wine_id = typeof updatedTasting.wine_id === 'string' ? parseInt(updatedTasting.wine_id, 10) : updatedTasting.wine_id;
-          
-          const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
-          if (tastingIndex !== -1) {
-            appState.tastingNotes[tastingIndex] = updatedTasting;
-          }
-        } else {
-          // Offline mode - update local state only
-          const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
-          if (tastingIndex !== -1) {
-            appState.tastingNotes[tastingIndex] = tastingData;
-          }
+        console.log(`[saveTastingNote] Updating tasting note ID ${appState.currentTastingId}`, tastingData);
+        
+        const updatedTasting = await api.put(
+          `${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`,
+          tastingData
+        );
+        
+        updatedTasting.id = typeof updatedTasting.id === 'string' ? parseInt(updatedTasting.id, 10) : updatedTasting.id;
+        updatedTasting.wine_id = typeof updatedTasting.wine_id === 'string' ? parseInt(updatedTasting.wine_id, 10) : updatedTasting.wine_id;
+        
+        const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
+        if (tastingIndex !== -1) {
+          appState.tastingNotes[tastingIndex] = updatedTasting;
         }
         
         console.log(`[saveTastingNote] Updated tasting note ID ${appState.currentTastingId}`);
@@ -1527,16 +1756,11 @@ const app = {
         
         console.log(`[saveTastingNote] Creating new tasting note with ID: ${numericId}`);
         
-        if (!appState.isOfflineMode) {
-          const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
-          newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
-          newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
-          console.log(`[saveTastingNote] Tasting note created with ID: ${newTasting.id}`);
-          appState.tastingNotes.push(newTasting);
-        } else {
-          // Offline mode - add to local state only
-          appState.tastingNotes.push(tastingData);
-        }
+        const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
+        newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
+        newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
+        console.log(`[saveTastingNote] Tasting note created with ID: ${newTasting.id}`);
+        appState.tastingNotes.push(newTasting);
         
         this.showToast('Proefnotitie opgeslagen', 'success');
       }
@@ -1568,6 +1792,7 @@ const app = {
       showLoadingOverlay('Proefnotitie verwijderen...');
       
       try {
+        console.log(`[deleteTastingNote] Deleting tasting note ID ${appState.currentTastingId}`);
         await api.delete(`${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`);
         
         appState.tastingNotes = appState.tastingNotes.filter(t => t.id !== appState.currentTastingId);
@@ -2027,7 +2252,8 @@ const app = {
     event.preventDefault();
     
     const name = document.getElementById('locationName').value.trim();
-    const temperature = parseFloat(document.getElementById('locationTemperature').value) || null;
+    const temperatureInput = document.getElementById('locationTemperature').value.trim();
+    const temperature = temperatureInput ? parseFloat(temperatureInput) : null;
     const locationIdInput = document.getElementById('locationId').value;
     
     if (!name) {
@@ -2050,40 +2276,31 @@ const app = {
         const locationId = parseInt(locationIdInput);
         const locationData = { id: locationId, name, temperature };
         
-        if (!appState.isOfflineMode) {
-          const updatedLocation = await api.put(`${API_CONFIG.endpoints.locations}/${locationId}`, locationData);
-          updatedLocation.id = typeof updatedLocation.id === 'string' ? parseInt(updatedLocation.id, 10) : updatedLocation.id;
-          
-          const index = appState.locations.findIndex(l => l.id === locationId);
-          if (index !== -1) {
-            appState.locations[index] = updatedLocation;
-          }
-        } else {
-          // Offline mode - update local state only
-          const index = appState.locations.findIndex(l => l.id === locationId);
-          if (index !== -1) {
-            appState.locations[index] = locationData;
-          }
+        console.log(`[saveLocation] Updating location ID ${locationId}`, locationData);
+        
+        const updatedLocation = await api.put(`${API_CONFIG.endpoints.locations}/${locationId}`, locationData);
+        updatedLocation.id = typeof updatedLocation.id === 'string' ? parseInt(updatedLocation.id, 10) : updatedLocation.id;
+        
+        const index = appState.locations.findIndex(l => l.id === locationId);
+        if (index !== -1) {
+          appState.locations[index] = updatedLocation;
         }
         
         this.showToast('Locatie bijgewerkt', 'success');
       } else {
-        // Create new location
+        // Create new location - get next ID
         const maxId = appState.locations.length > 0 
           ? Math.max(...appState.locations.map(l => parseInt(l.id) || 0))
-          : 0;
+          : 99; // Start at 100
         const newId = maxId + 1;
         
         const locationData = { id: newId, name, temperature };
         
-        if (!appState.isOfflineMode) {
-          const newLocation = await api.post(API_CONFIG.endpoints.locations, locationData);
-          newLocation.id = typeof newLocation.id === 'string' ? parseInt(newLocation.id, 10) : newLocation.id;
-          appState.locations.push(newLocation);
-        } else {
-          // Offline mode - add to local state only
-          appState.locations.push(locationData);
-        }
+        console.log(`[saveLocation] Creating new location with ID ${newId}`, locationData);
+        
+        const newLocation = await api.post(API_CONFIG.endpoints.locations, locationData);
+        newLocation.id = typeof newLocation.id === 'string' ? parseInt(newLocation.id, 10) : newLocation.id;
+        appState.locations.push(newLocation);
         
         this.showToast('Locatie toegevoegd', 'success');
       }
@@ -2118,6 +2335,7 @@ const app = {
       showLoadingOverlay('Locatie verwijderen...');
       
       try {
+        console.log(`[deleteLocation] Deleting location ID ${locationId}`);
         await api.delete(`${API_CONFIG.endpoints.locations}/${locationId}`);
         appState.locations = appState.locations.filter(l => l.id !== locationId);
         
@@ -2645,8 +2863,21 @@ const app = {
     const color = document.querySelector('input[name="userColor"]:checked')?.value;
     const userIdInput = document.getElementById('userId').value;
     
-    if (!name || !color) {
-      this.showToast('Vul naam en kleur in');
+    // Validation
+    if (!name) {
+      this.showToast('Vul een naam in');
+      document.getElementById('userName').focus();
+      return;
+    }
+    
+    if (!color) {
+      this.showToast('Selecteer een kleur');
+      return;
+    }
+    
+    if (email && !email.includes('@')) {
+      this.showToast('Voer een geldig e-mailadres in');
+      document.getElementById('userEmail').focus();
       return;
     }
     
@@ -2660,14 +2891,11 @@ const app = {
         const userId = parseInt(userIdInput);
         const userData = { id: userId, name, email, color };
         
-        if (!appState.isOfflineMode) {
-          const updatedUser = await api.put(`/users/${userId}`, userData);
-          const index = appState.users.findIndex(u => u.id === userId);
-          if (index !== -1) appState.users[index] = updatedUser;
-        } else {
-          const index = appState.users.findIndex(u => u.id === userId);
-          if (index !== -1) appState.users[index] = userData;
-        }
+        console.log(`[saveUser] Updating user ID ${userId}`, userData);
+        
+        const updatedUser = await api.put(`/users/${userId}`, userData);
+        const index = appState.users.findIndex(u => u.id === userId);
+        if (index !== -1) appState.users[index] = updatedUser;
         
         this.showToast('Gebruiker bijgewerkt', 'success');
       } else {
@@ -2675,12 +2903,10 @@ const app = {
         const newId = this.getNextUserId();
         const userData = { id: newId, name, email, color };
         
-        if (!appState.isOfflineMode) {
-          const newUser = await api.post('/users', userData);
-          appState.users.push(newUser);
-        } else {
-          appState.users.push(userData);
-        }
+        console.log(`[saveUser] Creating new user with ID ${newId}`, userData);
+        
+        const newUser = await api.post('/users', userData);
+        appState.users.push(newUser);
         
         this.showToast('Gebruiker toegevoegd', 'success');
       }
@@ -2712,11 +2938,18 @@ const app = {
     const user = appState.users.find(u => u.id === userId);
     if (!user) return;
     
-    if (confirm(`Weet je zeker dat je gebruiker "${user.name}" wilt verwijderen?`)) {
+    const userWines = appState.wines.filter(w => w.user_id === userId).length;
+    const userTastings = appState.tastingNotes.filter(t => t.user_id === userId).length;
+    
+    let confirmMessage = `Weet je zeker dat je gebruiker "${user.name}" wilt verwijderen?`;
+    if (userWines > 0 || userTastings > 0) {
+      confirmMessage += `\n\nLet op: Deze gebruiker heeft ${userWines} wijn${userWines !== 1 ? 'en' : ''} en ${userTastings} proefnotitie${userTastings !== 1 ? 's' : ''}. Deze blijven bestaan.`;
+    }
+    
+    if (confirm(confirmMessage)) {
       try {
-        if (!appState.isOfflineMode) {
-          await api.delete(`/users/${userId}`);
-        }
+        console.log(`[deleteUser] Deleting user ID ${userId}`);
+        await api.delete(`/users/${userId}`);
         
         appState.users = appState.users.filter(u => u.id !== userId);
         this.showToast('Gebruiker verwijderd', 'success');
@@ -2751,21 +2984,34 @@ const app = {
   // ============================================================================
   filterWines: function() {
     const searchInput = document.getElementById('searchInput');
-    if (!searchInput) return;
+    if (!searchInput) {
+      console.warn('[filterWines] Search input not found');
+      this.renderWines();
+      return;
+    }
     
     const searchTerm = searchInput.value.toLowerCase().trim();
     
     let filtered = this.getFilteredWines();
     
     if (searchTerm) {
+      console.log(`[filterWines] Searching for: "${searchTerm}"`);
       filtered = filtered.filter(wine => {
-        return wine.naam.toLowerCase().includes(searchTerm) ||
-               wine.wijnhuis.toLowerCase().includes(searchTerm) ||
-               wine.streek.toLowerCase().includes(searchTerm) ||
-               wine.druif.toLowerCase().includes(searchTerm) ||
-               wine.locatie.toLowerCase().includes(searchTerm) ||
-               wine.vintage.toString().includes(searchTerm);
+        const naam = (wine.naam || '').toLowerCase();
+        const wijnhuis = (wine.wijnhuis || '').toLowerCase();
+        const streek = (wine.streek || '').toLowerCase();
+        const druif = (wine.druif || '').toLowerCase();
+        const locatie = (wine.locatie || '').toLowerCase();
+        const vintage = (wine.vintage || '').toString();
+        
+        return naam.includes(searchTerm) ||
+               wijnhuis.includes(searchTerm) ||
+               streek.includes(searchTerm) ||
+               druif.includes(searchTerm) ||
+               locatie.includes(searchTerm) ||
+               vintage.includes(searchTerm);
       });
+      console.log(`[filterWines] Found ${filtered.length} wines matching "${searchTerm}"`);
     }
 
     this.renderWines(filtered);
