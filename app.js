@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -355,6 +355,8 @@ const appState = {
   tastingNotes: [],
   locations: [],
   users: [],
+  activities: [],
+  comments: [],
   currentUserId: null,
   isLoading: false,
   isConnected: false,
@@ -566,11 +568,13 @@ const app = {
     console.log(`[loadDataFromAPI] Starting data load from ${API_CONFIG.baseURL}`);
     
     try {
-      const [wines, tastingNotes, locations, users] = await Promise.all([
+      const [wines, tastingNotes, locations, users, activities, comments] = await Promise.all([
         api.get(API_CONFIG.endpoints.wines),
         api.get(API_CONFIG.endpoints.tastingNotes),
         api.get(API_CONFIG.endpoints.locations).catch(() => []),
-        api.get('/users').catch(() => [])
+        api.get('/users').catch(() => []),
+        api.get('/activities').catch(() => []),
+        api.get('/comments').catch(() => [])
       ]);
       
       // Ensure all IDs are stored as numbers
@@ -589,12 +593,21 @@ const app = {
       }));
       appState.users = (users || []).map(u => ({
         ...u,
-        id: typeof u.id === 'string' ? parseInt(u.id, 10) : u.id
+        id: typeof u.id === 'string' ? parseInt(u.id, 10) : u.id,
+        role: u.role || 'user'
+      }));
+      appState.activities = (activities || []).map(a => ({
+        ...a,
+        id: typeof a.id === 'string' ? parseInt(a.id, 10) : a.id
+      }));
+      appState.comments = (comments || []).map(c => ({
+        ...c,
+        id: typeof c.id === 'string' ? parseInt(c.id, 10) : c.id
       }));
       
-      // Ensure default user exists
+      // Ensure default admin user exists
       if (appState.users.length === 0) {
-        const defaultUser = { id: 1, name: "Jij", email: "", color: "#e74c3c" };
+        const defaultUser = { id: 1, name: "Hoofd", email: "admin@email.nl", color: "#e74c3c", role: "admin" };
         try {
           const newUser = await api.post('/users', defaultUser);
           appState.users.push(newUser);
@@ -610,7 +623,7 @@ const app = {
       }
       this.updateCurrentUserDisplay();
       
-      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, and ${appState.users.length} users`);
+      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, ${appState.users.length} users, ${appState.activities.length} activities, and ${appState.comments.length} comments`);
       console.log(`[loadDataFromAPI] Wine IDs:`, appState.wines.map(w => w.id));
       
       updateConnectionStatus(true);
@@ -657,6 +670,8 @@ const app = {
     appState.tastingNotes = dummyData.tastingNotes;
     appState.locations = dummyData.locations;
     appState.users = dummyData.users;
+    appState.activities = dummyData.activities || [];
+    appState.comments = dummyData.comments || [];
     appState.currentUserId = dummyData.users[0].id;
     appState.isOfflineMode = true;
     
@@ -768,6 +783,16 @@ const app = {
   // ============================================================================
   // HELPER FUNCTIONS
   // ============================================================================
+  isAdmin: function(userId) {
+    const user = appState.users.find(u => u.id === (userId || appState.currentUserId));
+    return user && user.role === 'admin';
+  },
+
+  canEditWine: function(wineId) {
+    const wine = this.getWineById(wineId);
+    return wine && wine.user_id === appState.currentUserId;
+  },
+
   getWineStatus: function(wine) {
     return wine.aantal_flessen > 0 ? 'In voorraad' : 'Uit voorraad';
   },
@@ -775,7 +800,12 @@ const app = {
   getFilteredWines: function() {
     let filtered = [...appState.wines];
     
-    // Filter by user if "Mijn wijnen" is enabled
+    // Always filter by current user for "Mijn Kelder" view (unless viewing another user)
+    if (appState.currentView === 'collection' && appState.currentUserId) {
+      filtered = filtered.filter(w => w.user_id === appState.currentUserId);
+    }
+    
+    // Additional filter if "Alleen mijn wijnen" checkbox is enabled
     if (appState.showOnlyMyWines && appState.currentUserId) {
       filtered = filtered.filter(w => w.user_id === appState.currentUserId);
     }
@@ -797,6 +827,11 @@ const app = {
       console.log(`[toggleMyWinesFilter] Show only my wines: ${appState.showOnlyMyWines}`);
       this.filterWines();
     }
+  },
+
+  getUserName: function(userId) {
+    const user = appState.users.find(u => u.id === userId);
+    return user ? user.name : "Onbekend";
   },
 
   getWineById: function(id) {
@@ -831,6 +866,74 @@ const app = {
 
   getTastingsForWine: function(wineId) {
     return appState.tastingNotes.filter(t => t.wine_id === wineId);
+  },
+
+  getTimeAgo: function(timestamp) {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Zojuist';
+    if (diffMins < 60) return `${diffMins} min geleden`;
+    if (diffHours < 24) return `${diffHours} uur geleden`;
+    if (diffDays === 1) return 'Gisteren';
+    if (diffDays < 7) return `${diffDays} dagen geleden`;
+    return past.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+  },
+
+  getNextActivityId: function() {
+    if (appState.activities.length === 0) return 3000;
+    const maxId = Math.max(...appState.activities.map(a => a.id));
+    return maxId + 1;
+  },
+
+  getNextCommentId: function() {
+    if (appState.comments.length === 0) return 4000;
+    const maxId = Math.max(...appState.comments.map(c => c.id));
+    return maxId + 1;
+  },
+
+  logActivity: async function(actionType, wineId = null, wineName = null, description = null) {
+    const activityId = this.getNextActivityId();
+    const activity = {
+      id: activityId,
+      user_id: appState.currentUserId,
+      action_type: actionType,
+      wine_id: wineId,
+      wine_name: wineName,
+      description: description || this.getActivityDescription(actionType, wineName),
+      timestamp: new Date().toISOString(),
+      likes: 0,
+      liked_by: []
+    };
+    
+    try {
+      const newActivity = await api.post('/activities', activity);
+      appState.activities.unshift(newActivity);
+      console.log(`[logActivity] Activity logged: ${actionType}`);
+    } catch (error) {
+      console.warn(`[logActivity] Failed to log activity:`, error);
+      appState.activities.unshift(activity);
+    }
+  },
+
+  getActivityDescription: function(actionType, wineName) {
+    const user = appState.users.find(u => u.id === appState.currentUserId);
+    const userName = user ? user.name : 'Gebruiker';
+    
+    switch (actionType) {
+      case 'wine_added': return `${userName} voegde "${wineName}" toe`;
+      case 'wine_deleted': return `${userName} verwijderde "${wineName}"`;
+      case 'wine_edited': return `${userName} wijzigde "${wineName}"`;
+      case 'wine_consumed': return `${userName} dronk "${wineName}"`;
+      case 'tasting_note_added': return `${userName} proefde "${wineName}"`;
+      case 'tasting_note_edited': return `${userName} wijzigde proefnotitie van "${wineName}"`;
+      case 'location_added': return `${userName} voegde locatie "${wineName}" toe`;
+      default: return `${userName} voerde een actie uit`;
+    }
   },
 
   // ============================================================================
@@ -946,8 +1049,11 @@ const app = {
     // Clear existing options except the first placeholder
     locatieSelect.innerHTML = '<option value="">Selecteer locatie</option>';
     
+    // Filter locations by current user
+    const userLocations = appState.locations.filter(l => l.user_id === appState.currentUserId);
+    
     // Add locations from state
-    appState.locations.forEach(location => {
+    userLocations.forEach(location => {
       const option = document.createElement('option');
       option.value = location.name;
       option.textContent = location.name;
@@ -1279,6 +1385,7 @@ const app = {
         
         console.log(`[saveWine] ✓ UPDATE COMPLETE - Wine ID ${editingId} updated via PUT`);
         appState.editingWineId = null; // Clear editing state
+        this.logActivity('wine_edited', editingId, naam);
         this.showToast('Wijn bijgewerkt', 'success');
       } else {
         // ============================================================
@@ -1313,6 +1420,7 @@ const app = {
         appState.wines.push(newWine);
         
         console.log(`[saveWine] ✓ CREATE COMPLETE - Wine ID ${newWine.id} created via POST`);
+        this.logActivity('wine_added', newWine.id, naam);
         this.showToast('Wijn toegevoegd', 'success');
       }
 
@@ -1399,6 +1507,7 @@ const app = {
         appState.wines = appState.wines.filter(w => w.id !== appState.currentWineId);
         appState.tastingNotes = appState.tastingNotes.filter(t => t.wine_id !== appState.currentWineId);
         
+        this.logActivity('wine_deleted', null, wine.naam);
         this.showToast('Wijn verwijderd', 'success');
         this.showCollection();
         
@@ -1434,6 +1543,10 @@ const app = {
       });
       
       wine.aantal_flessen = updatedWine.aantal_flessen;
+      
+      if (wine.aantal_flessen === 0) {
+        this.logActivity('wine_consumed', wine.id, wine.naam);
+      }
       
       const statusMsg = wine.aantal_flessen === 0 
         ? 'Fles gedronken, aantal bijgewerkt' 
@@ -1784,6 +1897,8 @@ const app = {
         
         console.log(`[saveTastingNote] ✓ UPDATE COMPLETE - Tasting note ID ${editingId} updated via PUT`);
         appState.currentTastingId = null; // Clear editing state
+        const wine = this.getWineById(appState.currentWineId);
+        this.logActivity('tasting_note_edited', appState.currentWineId, wine ? wine.naam : 'Wijn');
         this.showToast('Proefnotitie bijgewerkt', 'success');
       } else {
         // ============================================================
@@ -1829,6 +1944,10 @@ const app = {
         
         console.log(`[saveTastingNote] ✓ CREATE COMPLETE - Tasting note ID ${newTasting.id} created via POST`);
         
+        const wine = this.getWineById(appState.currentWineId);
+        const stars = Math.round((halfStars + manualHalfStars) / 2);
+        const starText = '⭐'.repeat(stars);
+        this.logActivity('tasting_note_added', appState.currentWineId, wine ? wine.naam : 'Wijn', `${wine ? wine.naam : 'Wijn'} - ${starText}`);
         this.showToast('Proefnotitie opgeslagen', 'success');
       }
 
@@ -2050,9 +2169,16 @@ const app = {
         month: 'long', 
         day: 'numeric' 
       });
+      const creatorName = this.getUserName(note.user_id);
+      const creator = appState.users.find(u => u.id === note.user_id);
+      const creatorColor = creator ? creator.color : '#999';
       return `
         <div class="tasting-note-card" onclick="app.showTastingDetail(${note.id})">
-          <div class="date">${date}</div>
+          <div class="date">📅 ${date}</div>
+          <div style="display: flex; align-items: center; gap: var(--space-8); margin: var(--space-8) 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">
+            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${creatorColor};"></span>
+            <span>Gemaakt door: <strong>${creatorName}</strong></span>
+          </div>
           <div class="stars">${starsDisplay} <small>(${this.formatStarCount(totalHalfStars)})</small></div>
           ${note.notities ? `<div class="excerpt">${note.notities.substring(0, 100)}${note.notities.length > 100 ? '...' : ''}</div>` : ''}
         </div>
@@ -2092,11 +2218,21 @@ const app = {
     const tannineLabels = ['Niet aanwezig', 'Laag', 'Medium', 'Hoog'];
     const levelLabels = ['', 'Laag', 'Medium', 'Hoog'];
 
+    const creatorName = this.getUserName(tasting.user_id);
+    const creator = appState.users.find(u => u.id === tasting.user_id);
+    const creatorColor = creator ? creator.color : '#999';
+
     document.getElementById('tastingDetailContent').innerHTML = `
+      <div class="tasting-info-section" style="background: var(--color-bg-5); padding: var(--space-16); border-radius: var(--radius-base); border: 1px solid ${creatorColor};">
+        <div style="display: flex; align-items: center; gap: var(--space-12); margin-bottom: var(--space-12);">
+          <span style="display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: ${creatorColor}; border: 2px solid var(--color-border);"></span>
+          <p style="margin: 0; font-size: var(--font-size-lg);"><strong>Gemaakt door ${creatorName} op ${date}</strong></p>
+        </div>
+      </div>
+
       <div class="tasting-info-section">
         <h4>Wijn</h4>
         <p><strong>${wine.naam}</strong> - ${wine.wijnhuis} (${wine.vintage})</p>
-        <p><strong>Datum:</strong> ${date}</p>
       </div>
 
       <div class="tasting-info-section" style="background: var(--color-bg-1); padding: var(--space-16); border-radius: var(--radius-base);">
@@ -2351,7 +2487,13 @@ const app = {
       if (locationIdInput) {
         // Edit existing location
         const locationId = parseInt(locationIdInput);
-        const locationData = { id: locationId, name, temperature };
+        const existingLocation = appState.locations.find(l => l.id === locationId);
+        const locationData = { 
+          id: locationId, 
+          name, 
+          temperature,
+          user_id: existingLocation ? existingLocation.user_id : appState.currentUserId
+        };
         
         console.log(`[saveLocation] Updating location ID ${locationId}`, locationData);
         
@@ -2371,7 +2513,12 @@ const app = {
           : 99; // Start at 100
         const newId = maxId + 1;
         
-        const locationData = { id: newId, name, temperature };
+        const locationData = { 
+          id: newId, 
+          name, 
+          temperature,
+          user_id: appState.currentUserId
+        };
         
         console.log(`[saveLocation] Creating new location with ID ${newId}`, locationData);
         
@@ -2379,6 +2526,7 @@ const app = {
         newLocation.id = typeof newLocation.id === 'string' ? parseInt(newLocation.id, 10) : newLocation.id;
         appState.locations.push(newLocation);
         
+        this.logActivity('location_added', null, name);
         this.showToast('Locatie toegevoegd', 'success');
       }
       
@@ -2446,12 +2594,15 @@ const app = {
     const locationsList = document.getElementById('locationsList');
     if (!locationsList) return;
     
-    if (appState.locations.length === 0) {
+    // Filter locations by current user
+    const userLocations = appState.locations.filter(l => l.user_id === appState.currentUserId);
+    
+    if (userLocations.length === 0) {
       locationsList.innerHTML = '<div class="empty-state">Geen locaties gevonden. Klik op "+ Nieuwe Locatie" om er een toe te voegen.</div>';
       return;
     }
     
-    locationsList.innerHTML = appState.locations.map(location => {
+    locationsList.innerHTML = userLocations.map(location => {
       const winesInLocation = appState.wines.filter(w => w.locatie === location.name);
       const wineCount = winesInLocation.length;
       const totalBottles = winesInLocation.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
@@ -2488,6 +2639,177 @@ const app = {
   },
 
   // ============================================================================
+  // ACTIVITY FEED
+  // ============================================================================
+  showActivities: function() {
+    appState.currentView = 'activities';
+    this.hideAllViews();
+    this.updateNavigation('activities');
+    document.getElementById('activitiesView').style.display = 'block';
+    this.renderActivities();
+  },
+
+  renderActivities: function() {
+    const container = document.getElementById('activitiesContainer');
+    if (!container) return;
+    
+    if (appState.activities.length === 0) {
+      container.innerHTML = '<div class="empty-state">Geen activiteiten gevonden. Begin met het toevoegen van wijnen!</div>';
+      return;
+    }
+    
+    // Sort activities by timestamp (newest first)
+    const sortedActivities = [...appState.activities].sort((a, b) => 
+      new Date(b.timestamp) - new Date(a.timestamp)
+    );
+    
+    container.innerHTML = sortedActivities.map(activity => {
+      const user = appState.users.find(u => u.id === activity.user_id);
+      const activityComments = appState.comments.filter(c => c.activity_id === activity.id);
+      const isLiked = activity.liked_by && activity.liked_by.includes(appState.currentUserId);
+      
+      return `
+        <div class="activity-card" data-activity-id="${activity.id}">
+          <div class="activity-header">
+            <div class="activity-user-avatar" style="background: ${user ? user.color : '#999'};"></div>
+            <div class="activity-info">
+              <div class="activity-user-name">${user ? user.name : 'Onbekend'}</div>
+              <div class="activity-timestamp">${this.getTimeAgo(activity.timestamp)}</div>
+            </div>
+          </div>
+          <div class="activity-content">
+            ${activity.description}
+          </div>
+          <div class="activity-actions">
+            <button class="activity-action-btn ${isLiked ? 'liked' : ''}" onclick="app.toggleActivityLike(${activity.id})">
+              ${isLiked ? '❤️' : '🤍'} ${activity.likes || 0}
+            </button>
+            <button class="activity-action-btn" onclick="app.toggleComments(${activity.id})">
+              💬 ${activityComments.length}
+            </button>
+          </div>
+          <div class="comments-section" id="comments-${activity.id}" style="display: none;">
+            <div id="comments-list-${activity.id}">
+              ${this.renderComments(activityComments)}
+            </div>
+            <form class="comment-form" onsubmit="app.addComment(event, ${activity.id})">
+              <input type="text" class="comment-input" placeholder="Voeg een reactie toe..." required>
+              <button type="submit" class="btn btn--sm btn--primary">Verstuur</button>
+            </form>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  renderComments: function(comments) {
+    if (comments.length === 0) return '<p style="color: var(--color-text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-12);">Nog geen reacties</p>';
+    
+    return comments.map(comment => {
+      const user = appState.users.find(u => u.id === comment.user_id);
+      const canDelete = comment.user_id === appState.currentUserId;
+      
+      return `
+        <div class="comment-item">
+          <div class="comment-avatar" style="background: ${user ? user.color : '#999'};"></div>
+          <div class="comment-content">
+            <div class="comment-author">${user ? user.name : 'Onbekend'}</div>
+            <div class="comment-text">${comment.text}</div>
+            <div class="comment-meta">
+              <span>${this.getTimeAgo(comment.timestamp)}</span>
+              ${canDelete ? `<button class="btn btn--sm btn--outline" onclick="app.deleteComment(${comment.id}, ${comment.activity_id})" style="padding: 2px 8px; font-size: 10px;">Verwijderen</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  toggleComments: function(activityId) {
+    const commentsSection = document.getElementById(`comments-${activityId}`);
+    if (commentsSection) {
+      commentsSection.style.display = commentsSection.style.display === 'none' ? 'block' : 'none';
+    }
+  },
+
+  toggleActivityLike: async function(activityId) {
+    const activity = appState.activities.find(a => a.id === activityId);
+    if (!activity) return;
+    
+    if (!activity.liked_by) activity.liked_by = [];
+    
+    const isLiked = activity.liked_by.includes(appState.currentUserId);
+    
+    if (isLiked) {
+      activity.liked_by = activity.liked_by.filter(id => id !== appState.currentUserId);
+      activity.likes = Math.max(0, (activity.likes || 0) - 1);
+    } else {
+      activity.liked_by.push(appState.currentUserId);
+      activity.likes = (activity.likes || 0) + 1;
+    }
+    
+    try {
+      await api.put(`/activities/${activityId}`, activity);
+      this.renderActivities();
+    } catch (error) {
+      console.warn('[toggleActivityLike] Failed to update like:', error);
+      this.renderActivities();
+    }
+  },
+
+  addComment: async function(event, activityId) {
+    event.preventDefault();
+    const input = event.target.querySelector('.comment-input');
+    const text = input.value.trim();
+    if (!text) return;
+    
+    const commentId = this.getNextCommentId();
+    const comment = {
+      id: commentId,
+      activity_id: activityId,
+      user_id: appState.currentUserId,
+      text: text,
+      timestamp: new Date().toISOString()
+    };
+    
+    try {
+      const newComment = await api.post('/comments', comment);
+      appState.comments.push(newComment);
+      input.value = '';
+      this.renderActivities();
+      // Re-open comments section
+      setTimeout(() => {
+        const commentsSection = document.getElementById(`comments-${activityId}`);
+        if (commentsSection) commentsSection.style.display = 'block';
+      }, 100);
+    } catch (error) {
+      console.warn('[addComment] Failed to add comment:', error);
+      appState.comments.push(comment);
+      input.value = '';
+      this.renderActivities();
+    }
+  },
+
+  deleteComment: async function(commentId, activityId) {
+    if (!confirm('Weet je zeker dat je deze reactie wilt verwijderen?')) return;
+    
+    try {
+      await api.delete(`/comments/${commentId}`);
+      appState.comments = appState.comments.filter(c => c.id !== commentId);
+      this.renderActivities();
+      // Re-open comments section
+      setTimeout(() => {
+        const commentsSection = document.getElementById(`comments-${activityId}`);
+        if (commentsSection) commentsSection.style.display = 'block';
+      }, 100);
+    } catch (error) {
+      console.warn('[deleteComment] Failed to delete comment:', error);
+      appState.comments = appState.comments.filter(c => c.id !== commentId);
+      this.renderActivities();
+    }
+  },
+
+  // ============================================================================
   // STATISTICS
   // ============================================================================
   showStatistics: function() {
@@ -2502,20 +2824,26 @@ const app = {
     const container = document.getElementById('statisticsContainer');
     if (!container) return;
     
-    if (appState.wines.length === 0) {
+    // Filter wines by current user
+    const userWines = appState.wines.filter(w => w.user_id === appState.currentUserId);
+    
+    if (userWines.length === 0) {
       container.innerHTML = '<div class="empty-stat">Geen wijnen om statistieken voor te tonen. Voeg eerst wijnen toe.</div>';
       return;
     }
     
-    if (appState.locations.length === 0) {
+    // Filter locations by current user
+    const userLocations = appState.locations.filter(l => l.user_id === appState.currentUserId);
+    
+    if (userLocations.length === 0) {
       container.innerHTML = '<div class="empty-stat">Geen locaties gevonden. Voeg eerst locaties toe via 📍 Locaties.</div>';
       return;
     }
     
     let html = '';
     
-    appState.locations.forEach(location => {
-      const winesInLocation = appState.wines.filter(w => w.locatie === location.name);
+    userLocations.forEach(location => {
+      const winesInLocation = userWines.filter(w => w.locatie === location.name);
       const tempClass = this.getTemperatureClass(location.temperature);
       const tempIcon = this.getTemperatureIcon(location.temperature);
       
@@ -2647,37 +2975,40 @@ const app = {
     const container = document.getElementById('valueDashboardContainer');
     if (!container) return;
     
-    if (appState.wines.length === 0) {
+    // Filter wines by current user
+    const userWines = appState.wines.filter(w => w.user_id === appState.currentUserId);
+    
+    if (userWines.length === 0) {
       container.innerHTML = '<div class="empty-stat">Geen wijnen om waardes voor te berekenen</div>';
       return;
     }
     
     // Calculate total value
-    const totalValue = appState.wines.reduce((sum, w) => {
+    const totalValue = userWines.reduce((sum, w) => {
       const price = w.price_per_bottle || 0;
       const bottles = w.aantal_flessen || 0;
       return sum + (price * bottles);
     }, 0);
     
-    const totalBottles = appState.wines.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
+    const totalBottles = userWines.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
     const avgPrice = totalBottles > 0 ? totalValue / totalBottles : 0;
     
     // Value per location
     const locationValues = {};
-    appState.wines.forEach(w => {
+    userWines.forEach(w => {
       const value = (w.price_per_bottle || 0) * (w.aantal_flessen || 0);
       locationValues[w.locatie] = (locationValues[w.locatie] || 0) + value;
     });
     
     // Value per wine type
     const typeValues = {};
-    appState.wines.forEach(w => {
+    userWines.forEach(w => {
       const value = (w.price_per_bottle || 0) * (w.aantal_flessen || 0);
       typeValues[w.kleur] = (typeValues[w.kleur] || 0) + value;
     });
     
     // Most expensive wines
-    const wineValues = appState.wines.map(w => ({
+    const wineValues = userWines.map(w => ({
       ...w,
       totalValue: (w.price_per_bottle || 0) * (w.aantal_flessen || 0)
     })).filter(w => w.totalValue > 0).sort((a, b) => b.totalValue - a.totalValue);
@@ -2860,7 +3191,7 @@ const app = {
   },
 
   // ============================================================================
-  // USER MANAGEMENT
+  // USER MANAGEMENT & DIRECTORY
   // ============================================================================
   showUsers: function() {
     appState.currentView = 'users';
@@ -2868,6 +3199,120 @@ const app = {
     this.updateNavigation('users');
     document.getElementById('usersView').style.display = 'block';
     this.renderUsers();
+  },
+
+  viewUserKelder: function(userId) {
+    const user = appState.users.find(u => u.id === userId);
+    if (!user) {
+      this.showToast('Gebruiker niet gevonden');
+      return;
+    }
+    
+    appState.currentView = 'viewUserKelder';
+    this.hideAllViews();
+    document.getElementById('viewUserKelderView').style.display = 'block';
+    
+    const userWines = appState.wines.filter(w => w.user_id === userId);
+    const userLocations = appState.locations.filter(l => l.user_id === userId);
+    const userTastings = appState.tastingNotes.filter(t => t.user_id === userId);
+    
+    document.getElementById('viewUserKelderTitle').textContent = `Wijnkelder van ${user.name}`;
+    
+    const container = document.getElementById('viewUserKelderContainer');
+    if (!container) return;
+    
+    const totalBottles = userWines.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
+    const totalValue = userWines.reduce((sum, w) => (w.price_per_bottle || 0) * (w.aantal_flessen || 0) + sum, 0);
+    
+    let html = `
+      <div class="user-kelder-header">
+        <div class="user-kelder-avatar" style="background: ${user.color};"></div>
+        <div class="user-kelder-info">
+          <h2>${user.name} ${user.role === 'admin' ? '<span class="admin-badge">👑 Admin</span>' : ''}</h2>
+          <p>${user.email || 'Geen email'}</p>
+          <div class="user-kelder-stats">
+            <span>🍷 ${userWines.length} wijn${userWines.length !== 1 ? 'en' : ''}</span>
+            <span>🍾 ${totalBottles} fles${totalBottles !== 1 ? 'sen' : ''}</span>
+            <span>📍 ${userLocations.length} locatie${userLocations.length !== 1 ? 's' : ''}</span>
+            <span>📝 ${userTastings.length} proefnotitie${userTastings.length !== 1 ? 's' : ''}</span>
+            ${totalValue > 0 ? `<span>💰 €${totalValue.toFixed(2)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+      
+      <div class="user-kelder-content">
+    `;
+    
+    // Show locations
+    if (userLocations.length > 0) {
+      html += `
+        <div class="card">
+          <div class="card__body">
+            <h3>📍 Locaties <span class="readonly-badge">🔒 Alleen-lezen</span></h3>
+            <div style="display: flex; flex-wrap: wrap; gap: var(--space-12); margin-top: var(--space-16);">
+              ${userLocations.map(loc => {
+                const winesInLoc = userWines.filter(w => w.locatie === loc.name).length;
+                return `
+                  <div style="padding: var(--space-12); background: var(--color-bg-1); border-radius: var(--radius-base); flex: 1; min-width: 150px;">
+                    <strong>${loc.name}</strong><br>
+                    <small style="color: var(--color-text-secondary);">${winesInLoc} wijn${winesInLoc !== 1 ? 'en' : ''}</small>
+                    ${loc.temperature ? `<br><small style="color: var(--color-text-secondary);">🌡️ ${loc.temperature}°C</small>` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    // Show wines
+    if (userWines.length > 0) {
+      html += `
+        <div class="card">
+          <div class="card__body">
+            <h3>🍷 Wijnen <span class="readonly-badge">🔒 Alleen-lezen</span></h3>
+            <div class="wine-grid" style="margin-top: var(--space-16);">
+              ${userWines.map(wine => {
+                const tastings = userTastings.filter(t => t.wine_id === wine.id);
+                const isOutOfStock = wine.aantal_flessen === 0;
+                const price = wine.price_per_bottle || 0;
+                const totalWineValue = price * (wine.aantal_flessen || 0);
+                
+                return `
+                  <div class="wine-card ${isOutOfStock ? 'wine-card--out-of-stock' : ''}" style="cursor: default;">
+                    ${wine.photo_base64 ? `
+                      <img src="${wine.photo_base64}" class="wine-photo-thumbnail" alt="${wine.naam}" style="width: 100%; height: 150px; object-fit: cover; margin-bottom: var(--space-12); border-radius: var(--radius-base);">
+                    ` : ''}
+                    <div class="wine-card-header">
+                      <h3>${wine.naam}</h3>
+                      ${isOutOfStock ? '<span class="stock-icon out-of-stock">📧</span>' : '<span class="stock-icon in-stock">🍷</span>'}
+                    </div>
+                    <p><strong>${wine.wijnhuis}</strong></p>
+                    <p>${wine.vintage} • ${wine.streek}</p>
+                    <p>${wine.druif}</p>
+                    ${price > 0 ? `<p style="color: var(--color-primary); font-weight: var(--font-weight-medium); margin-top: var(--space-8);">€${price.toFixed(2)}/fles • €${totalWineValue.toFixed(2)} totaal</p>` : ''}
+                    <div class="wine-card-footer">
+                      ${wine.kleur ? `<span class="kleur-badge kleur-badge--${wine.kleur.toLowerCase()}">${wine.kleur}</span>` : ''}
+                      <span class="location-badge">${wine.locatie}</span>
+                      <span class="stock-badge ${isOutOfStock ? 'stock-badge--out' : 'stock-badge--in'}">
+                        ${wine.aantal_flessen} fles${wine.aantal_flessen !== 1 ? 'sen' : ''}
+                      </span>
+                    </div>
+                    ${tastings.length > 0 ? `<p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-top: var(--space-4);">📝 ${tastings.length} proefnotitie${tastings.length !== 1 ? 's' : ''}</p>` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      html += '<div class="empty-state">Deze gebruiker heeft nog geen wijnen toegevoegd</div>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
   },
 
   renderUsers: function() {
@@ -2902,6 +3347,12 @@ const app = {
   },
 
   showUserForm: function(userId = null) {
+    // Check if user is admin
+    if (!this.isAdmin()) {
+      this.showToast('Alleen administrators kunnen gebruikers bewerken', 'error');
+      return;
+    }
+    
     const modal = document.getElementById('userFormModal');
     if (!modal) return;
     
@@ -2935,6 +3386,12 @@ const app = {
   saveUser: async function(event) {
     event.preventDefault();
     
+    // Check if user is admin
+    if (!this.isAdmin()) {
+      this.showToast('Alleen administrators kunnen gebruikers beheren', 'error');
+      return;
+    }
+    
     const name = document.getElementById('userName').value.trim();
     const email = document.getElementById('userEmail').value.trim();
     const color = document.querySelector('input[name="userColor"]:checked')?.value;
@@ -2966,7 +3423,14 @@ const app = {
       if (userIdInput) {
         // Edit existing user
         const userId = parseInt(userIdInput);
-        const userData = { id: userId, name, email, color };
+        const existingUser = appState.users.find(u => u.id === userId);
+        const userData = { 
+          id: userId, 
+          name, 
+          email, 
+          color,
+          role: existingUser ? existingUser.role : 'user'
+        };
         
         console.log(`[saveUser] Updating user ID ${userId}`, userData);
         
@@ -2978,7 +3442,7 @@ const app = {
       } else {
         // Create new user
         const newId = this.getNextUserId();
-        const userData = { id: newId, name, email, color };
+        const userData = { id: newId, name, email, color, role: 'user' };
         
         console.log(`[saveUser] Creating new user with ID ${newId}`, userData);
         
@@ -3002,6 +3466,12 @@ const app = {
   },
 
   deleteUser: async function(userId) {
+    // Check if user is admin
+    if (!this.isAdmin()) {
+      this.showToast('Alleen administrators kunnen gebruikers verwijderen', 'error');
+      return;
+    }
+    
     if (appState.users.length <= 1) {
       this.showToast('Er moet minimaal 1 gebruiker zijn');
       return;

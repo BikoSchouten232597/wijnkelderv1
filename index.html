@@ -22,6 +22,9 @@
             <button class="nav-item" data-view="locations" onclick="app.showLocations()">
                 📍 Locaties
             </button>
+            <button class="nav-item" data-view="activities" onclick="app.showActivities()">
+                📰 Activiteiten
+            </button>
             <button class="nav-item" data-view="users" onclick="app.showUsers()">
                 👥 Gebruikers
             </button>
@@ -575,8 +578,8 @@
         <!-- Users View -->
         <div id="usersView" class="view" style="display: none;">
             <header class="app-header">
-                <h1>👥 Gebruikers Beheren</h1>
-                <button class="btn btn--primary" onclick="app.showUserForm()">+ Nieuwe Gebruiker</button>
+                <h1>👥 Gebruikers</h1>
+                <div id="usersHeaderActions"></div>
             </header>
             <div id="usersContainer" class="users-container"></div>
         </div>
@@ -609,6 +612,23 @@
                     <p>Een complete oplossing voor het beheren van je wijnverzameling</p>
                 </div>
             </div>
+        </div>
+
+        <!-- Activity Feed View -->
+        <div id="activitiesView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>📰 Activiteiten Feed</h1>
+            </header>
+            <div id="activitiesContainer" class="activities-container"></div>
+        </div>
+
+        <!-- View Other User's Kelder -->
+        <div id="viewUserKelderView" class="view" style="display: none;">
+            <header class="app-header">
+                <button class="btn-back" onclick="app.showUsers()">← Terug naar gebruikers</button>
+                <h1 id="viewUserKelderTitle">Wijnkelder van Gebruiker</h1>
+            </header>
+            <div id="viewUserKelderContainer" class="view-user-kelder-container"></div>
         </div>
 
         <!-- Extensions View -->
