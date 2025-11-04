@@ -2,11 +2,12 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
-    tastingNotes: '/tastingNotes'
+    tastingNotes: '/tastingNotes',
+    locations: '/locations'
   },
   debug: true // Enable detailed console logging
 };
@@ -218,14 +219,20 @@ const api = {
 const appState = {
   wines: [],
   tastingNotes: [],
+  locations: [],
+  users: [],
+  currentUserId: null,
   isLoading: false,
   isConnected: false,
+  isOfflineMode: false,
   currentView: 'collection',
   currentWineId: null,
   currentTastingId: null,
   editingWineId: null,
   currentStockFilter: 'all',
-  viewHistory: []
+  currentUserFilter: 'all', // 'all' or 'mine'
+  viewHistory: [],
+  currentPhotoBase64: null // Temporary storage for photo during form editing
 };
 
 // Helper: Show/hide loading overlay
@@ -277,6 +284,44 @@ function updateConnectionStatus(connected) {
 // Helper: Deep copy object
 function deepCopy(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// ============================================================================
+// DUMMY DATA GENERATION (for offline mode)
+// ============================================================================
+function generateDummyData() {
+  return {
+    locations: [
+      { id: 1, name: "Kelder", temperature: 12 },
+      { id: 2, name: "Klimaatkast", temperature: 18 },
+      { id: 3, name: "Wijnkast", temperature: 16 },
+      { id: 4, name: "Garage", temperature: 14 }
+    ],
+    users: [
+      { id: 1, name: "Demo Gebruiker", email: "demo@example.com", color: "#e74c3c" },
+      { id: 2, name: "Partner", email: "partner@example.com", color: "#3498db" }
+    ],
+    wines: [
+      { id: 1001, user_id: 1, naam: "Reserva", wijnhuis: "Marqués de Riscal", vintage: 2018, streek: "Rioja", druif: "Tempranillo", kleur: "Rood", locatie: "Kelder", aantal_flessen: 3, price_per_bottle: 25.50 },
+      { id: 1002, user_id: 1, naam: "Chablis", wijnhuis: "William Fèvre", vintage: 2020, streek: "Bourgogne", druif: "Chardonnay", kleur: "Wit", locatie: "Klimaatkast", aantal_flessen: 2, price_per_bottle: 32.00 },
+      { id: 1003, user_id: 2, naam: "Chianti Classico", wijnhuis: "Antinori", vintage: 2019, streek: "Toscane", druif: "Sangiovese", kleur: "Rood", locatie: "Kelder", aantal_flessen: 4, price_per_bottle: 18.50 },
+      { id: 1004, user_id: 1, naam: "Prosecco", wijnhuis: "Bisol", vintage: 2022, streek: "Veneto", druif: "Glera", kleur: "Wit", locatie: "Wijnkast", aantal_flessen: 6, price_per_bottle: 12.00 },
+      { id: 1005, user_id: 2, naam: "Barolo", wijnhuis: "Pio Cesare", vintage: 2017, streek: "Piemonte", druif: "Nebbiolo", kleur: "Rood", locatie: "Kelder", aantal_flessen: 2, price_per_bottle: 55.00 },
+      { id: 1006, user_id: 1, naam: "Sancerre", wijnhuis: "Pascal Jolivet", vintage: 2021, streek: "Loire", druif: "Sauvignon Blanc", kleur: "Wit", locatie: "Klimaatkast", aantal_flessen: 3, price_per_bottle: 22.00 },
+      { id: 1007, user_id: 2, naam: "Rosé de Provence", wijnhuis: "Château d'Esclans", vintage: 2022, streek: "Provence", druif: "Grenache", kleur: "Rosé", locatie: "Wijnkast", aantal_flessen: 4, price_per_bottle: 15.00 },
+      { id: 1008, user_id: 1, naam: "Amarone", wijnhuis: "Allegrini", vintage: 2016, streek: "Veneto", druif: "Corvina", kleur: "Rood", locatie: "Kelder", aantal_flessen: 1, price_per_bottle: 68.00 },
+      { id: 1009, user_id: 2, naam: "Riesling", wijnhuis: "Dr. Loosen", vintage: 2020, streek: "Moezel", druif: "Riesling", kleur: "Wit", locatie: "Klimaatkast", aantal_flessen: 3, price_per_bottle: 19.50 },
+      { id: 1010, user_id: 1, naam: "Malbec Reserve", wijnhuis: "Catena Zapata", vintage: 2019, streek: "Mendoza", druif: "Malbec", kleur: "Rood", locatie: "Garage", aantal_flessen: 2, price_per_bottle: 28.00 },
+      { id: 1011, user_id: 2, naam: "Pinot Grigio", wijnhuis: "Livio Felluga", vintage: 2022, streek: "Friuli", druif: "Pinot Grigio", kleur: "Wit", locatie: "Wijnkast", aantal_flessen: 5, price_per_bottle: 14.00 },
+      { id: 1012, user_id: 1, naam: "Châteauneuf-du-Pape", wijnhuis: "Domaine du Vieux Télégraphe", vintage: 2018, streek: "Rhône", druif: "Grenache Blend", kleur: "Rood", locatie: "Kelder", aantal_flessen: 2, price_per_bottle: 45.00 }
+    ],
+    tastingNotes: [
+      { id: 2001, wine_id: 1001, user_id: 1, datum: "2024-10-15", wijntype: "Rood", kleur: "Robijn", intensiteit: "Hoog", geurintensiteit: "Hoog", geur_primair: ["Donker fruit", "Kruiden"], geur_secundair: ["Houtrijping"], geur_tertiair: [], droog: "0", tannines: "2", zuur: "2", alcohol: "2", body: "Medium", afdronk: "Hoog", automatic_stars: 4, manual_stars: 0, manual_star_reasons: [], notities: "Mooie balans, goede structuur" },
+      { id: 2002, wine_id: 1002, user_id: 1, datum: "2024-09-20", wijntype: "Wit", kleur: "Stro geel", intensiteit: "Medium", geurintensiteit: "Medium", geur_primair: ["Citrus", "Steenfruit"], geur_secundair: [], geur_tertiair: [], droog: "0", tannines: "0", zuur: "3", alcohol: "2", body: "Medium", afdronk: "Medium", automatic_stars: 2, manual_stars: 0, manual_star_reasons: [], notities: "Frisse Chablis met mooie mineraliteit" },
+      { id: 2003, wine_id: 1005, user_id: 2, datum: "2024-11-01", wijntype: "Rood", kleur: "Granaat rood", intensiteit: "Hoog", geurintensiteit: "Hoog", geur_primair: ["Rood fruit", "Donker fruit", "Bloemen"], geur_secundair: ["Houtrijping"], geur_tertiair: ["Evolutie (chocolade, paddestoel, etc.)"], droog: "0", tannines: "3", zuur: "3", alcohol: "3", body: "Hoog", afdronk: "Hoog", automatic_stars: 4, manual_stars: 2, manual_star_reasons: ["Uitzonderlijke complexiteit"], notities: "Prachtige Barolo, lang bewaren" },
+      { id: 2004, wine_id: 1008, user_id: 1, datum: "2024-10-28", wijntype: "Rood", kleur: "Granaat rood", intensiteit: "Hoog", geurintensiteit: "Hoog", geur_primair: ["Donker fruit"], geur_secundair: ["Houtrijping"], geur_tertiair: ["Evolutie (chocolade, paddestoel, etc.)"], droog: "1", tannines: "3", zuur: "2", alcohol: "3", body: "Hoog", afdronk: "Hoog", automatic_stars: 4, manual_stars: 4, manual_star_reasons: ["Perfecte balans", "Unieke complexiteit"], notities: "Geweldige Amarone, zeer krachtig" }
+    ]
+  };
 }
 
 // ============================================================================
@@ -374,14 +419,16 @@ const app = {
   },
 
   async loadDataFromAPI() {
-    showLoadingOverlay('Laden van wijnen en proefnotities...');
+    showLoadingOverlay('Laden van gegevens...');
     
     console.log(`[loadDataFromAPI] Starting data load from ${API_CONFIG.baseURL}`);
     
     try {
-      const [wines, tastingNotes] = await Promise.all([
+      const [wines, tastingNotes, locations, users] = await Promise.all([
         api.get(API_CONFIG.endpoints.wines),
-        api.get(API_CONFIG.endpoints.tastingNotes)
+        api.get(API_CONFIG.endpoints.tastingNotes),
+        api.get(API_CONFIG.endpoints.locations).catch(() => []),
+        api.get('/users').catch(() => [])
       ]);
       
       // Ensure all IDs are stored as numbers
@@ -394,11 +441,38 @@ const app = {
         id: typeof t.id === 'string' ? parseInt(t.id, 10) : t.id,
         wine_id: typeof t.wine_id === 'string' ? parseInt(t.wine_id, 10) : t.wine_id
       }));
+      appState.locations = (locations || []).map(l => ({
+        ...l,
+        id: typeof l.id === 'string' ? parseInt(l.id, 10) : l.id
+      }));
+      appState.users = (users || []).map(u => ({
+        ...u,
+        id: typeof u.id === 'string' ? parseInt(u.id, 10) : u.id
+      }));
       
-      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines and ${appState.tastingNotes.length} tasting notes`);
+      // Ensure default user exists
+      if (appState.users.length === 0) {
+        const defaultUser = { id: 1, name: "Jij", email: "", color: "#e74c3c" };
+        try {
+          const newUser = await api.post('/users', defaultUser);
+          appState.users.push(newUser);
+        } catch (err) {
+          console.warn('Could not create default user:', err);
+          appState.users.push(defaultUser);
+        }
+      }
+      
+      // Select user (use saved or first user)
+      if (!appState.currentUserId) {
+        appState.currentUserId = appState.users[0].id;
+      }
+      this.updateCurrentUserDisplay();
+      
+      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, and ${appState.users.length} users`);
       console.log(`[loadDataFromAPI] Wine IDs:`, appState.wines.map(w => w.id));
       
       updateConnectionStatus(true);
+      appState.isOfflineMode = false;
       this.showCollection();
       this.showToast('Data succesvol geladen', 'success');
       
@@ -406,30 +480,130 @@ const app = {
       console.error('[loadDataFromAPI] Failed to load data:', error);
       updateConnectionStatus(false);
       
-      // Show error message
-      const errorDiv = document.createElement('div');
-      errorDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface); padding: var(--space-32); border-radius: var(--radius-lg); border: 2px solid var(--color-error); box-shadow: var(--shadow-lg); max-width: 500px; z-index: 10000; text-align: center;';
-      errorDiv.innerHTML = `
-        <h2 style="color: var(--color-error); margin-bottom: var(--space-16);">⚠️ Kan niet verbinden met database</h2>
-        <p style="margin-bottom: var(--space-16); color: var(--color-text);">${error.message}</p>
-        <p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: var(--space-16);">Huidige API URL: <strong>${API_CONFIG.baseURL}</strong></p>
-        <div style="background: var(--color-secondary); padding: var(--space-16); border-radius: var(--radius-base); margin-bottom: var(--space-16); text-align: left;">
-          <strong>Troubleshooting:</strong><br>
-          1. Controleer of JSON Server draait<br>
-          2. Open browser console (F12) voor details<br>
-          3. Klik op "API Instellingen" om URL aan te passen
-        </div>
-        <div style="display: flex; gap: var(--space-12);">
-          <button class="btn btn--secondary" onclick="app.showApiConfig(); this.parentElement.parentElement.remove();">⚙️ API Instellingen</button>
-          <button class="btn btn--primary" onclick="location.reload()">🔄 Opnieuw proberen</button>
-        </div>
-      `;
-      document.body.appendChild(errorDiv);
+      // Show offline mode modal
+      this.showOfflineModal();
       
       this.showToast(error.message, 'error');
     } finally {
       hideLoadingOverlay();
     }
+  },
+
+  showOfflineModal: function() {
+    const modal = document.getElementById('offlineModeModal');
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  },
+
+  retryConnection: function() {
+    const modal = document.getElementById('offlineModeModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    this.loadDataFromAPI();
+  },
+
+  loadDummyData: function() {
+    const modal = document.getElementById('offlineModeModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    
+    const dummyData = generateDummyData();
+    appState.wines = dummyData.wines;
+    appState.tastingNotes = dummyData.tastingNotes;
+    appState.locations = dummyData.locations;
+    appState.users = dummyData.users;
+    appState.currentUserId = dummyData.users[0].id;
+    appState.isOfflineMode = true;
+    
+    this.updateCurrentUserDisplay();
+    updateConnectionStatus(false);
+    
+    // Show offline indicator
+    this.showOfflineIndicator();
+    
+    this.showCollection();
+    this.showToast('Voorbeeldgegevens geladen', 'success');
+  },
+
+  showOfflineIndicator: function() {
+    let indicator = document.getElementById('offlineIndicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'offlineIndicator';
+      indicator.className = 'offline-indicator';
+      indicator.innerHTML = 'ℹ️ Werkt met voorbeeldgegevens';
+      document.body.appendChild(indicator);
+    }
+  },
+
+  hideOfflineIndicator: function() {
+    const indicator = document.getElementById('offlineIndicator');
+    if (indicator) {
+      indicator.remove();
+    }
+  },
+
+  updateCurrentUserDisplay: function() {
+    const currentUser = appState.users.find(u => u.id === appState.currentUserId);
+    const userNameEl = document.getElementById('currentUserName');
+    const userBadgeEl = document.getElementById('currentUserBadge');
+    if (currentUser && userNameEl && userBadgeEl) {
+      userNameEl.textContent = currentUser.name;
+      userBadgeEl.style.borderColor = currentUser.color;
+    }
+  },
+
+  showUserSelector: function() {
+    const modal = document.getElementById('userSelectorModal');
+    if (!modal) return;
+    
+    const listEl = document.getElementById('userSelectorList');
+    if (!listEl) return;
+    
+    listEl.innerHTML = appState.users.map(user => {
+      const isActive = user.id === appState.currentUserId;
+      return `
+        <div class="user-selector-item ${isActive ? 'active' : ''}" onclick="app.selectUser(${user.id})">
+          <div class="user-color-dot" style="background: ${user.color};"></div>
+          <div class="user-selector-info">
+            <strong>${user.name}</strong>
+            ${user.email ? `<small>${user.email}</small>` : ''}
+          </div>
+          ${isActive ? '<span>✓</span>' : ''}
+        </div>
+      `;
+    }).join('');
+    
+    modal.style.display = 'flex';
+  },
+
+  selectUser: function(userId) {
+    appState.currentUserId = userId;
+    this.updateCurrentUserDisplay();
+    
+    const modal = document.getElementById('userSelectorModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    
+    this.showCollection();
+    this.showToast('Gebruiker gewisseld', 'success');
+  },
+
+  getNextUserId: function() {
+    if (appState.users.length === 0) return 1;
+    const maxId = Math.max(...appState.users.map(u => u.id));
+    return maxId + 1;
+  },
+
+  oldShowOfflineError: function() {
+    // Keep old error display for reference
+    const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface); padding: var(--space-32); border-radius: var(--radius-lg); border: 2px solid var(--color-error); box-shadow: var(--shadow-lg); max-width: 500px; z-index: 10000; text-align: center;';
+      // This is the old error display code - now replaced by modal
   },
 
   // ============================================================================
@@ -494,14 +668,34 @@ const app = {
     appState.currentTastingId = null;
     appState.editingWineId = null;
     this.hideAllViews();
+    this.updateNavigation('collection');
     document.getElementById('collectionView').style.display = 'block';
     this.renderWines();
+  },
+
+  updateNavigation: function(activeView) {
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      item.classList.remove('active');
+      if (item.getAttribute('data-view') === activeView) {
+        item.classList.add('active');
+      }
+    });
   },
 
   showWineForm: function(wineId = null) {
     appState.currentView = 'wineForm';
     this.hideAllViews();
     document.getElementById('wineFormView').style.display = 'block';
+    
+    // Load locations into dropdown
+    this.loadLocationsIntoDropdown();
+    
+    // Setup photo upload handler
+    const photoInput = document.getElementById('winePhoto');
+    if (photoInput) {
+      photoInput.onchange = (e) => this.handlePhotoUpload(e);
+    }
     
     if (wineId) {
       appState.editingWineId = wineId;
@@ -512,21 +706,63 @@ const app = {
         return;
       }
       document.getElementById('wineFormTitle').textContent = 'Wijn Bewerken';
+      // Pre-fill form with wine data
       document.getElementById('wineId').value = wine.id;
-      document.getElementById('wineNaam').value = wine.naam;
-      document.getElementById('wineWijnhuis').value = wine.wijnhuis;
-      document.getElementById('wineVintage').value = wine.vintage;
-      document.getElementById('wineStreek').value = wine.streek;
-      document.getElementById('wineDruif').value = wine.druif;
+      document.getElementById('wineNaam').value = wine.naam || '';
+      document.getElementById('wineWijnhuis').value = wine.wijnhuis || '';
+      document.getElementById('wineVintage').value = wine.vintage || '';
+      document.getElementById('wineStreek').value = wine.streek || '';
+      document.getElementById('wineDruif').value = wine.druif || '';
       document.getElementById('wineKleur').value = wine.kleur || '';
-      document.getElementById('wineLocatie').value = wine.locatie;
-      document.getElementById('wineAantalFlessen').value = wine.aantal_flessen;
+      document.getElementById('wineAantalFlessen').value = wine.aantal_flessen || 1;
+      document.getElementById('winePrijs').value = wine.price_per_bottle || '';
+      
+      // Show existing photo if available
+      if (wine.photo_base64) {
+        appState.currentPhotoBase64 = wine.photo_base64;
+        this.showPhotoPreview(wine.photo_base64);
+      } else {
+        this.removePhoto();
+      }
+      
+      // Set location after dropdown is loaded
+      setTimeout(() => {
+        const locatieSelect = document.getElementById('wineLocatie');
+        if (locatieSelect && wine.locatie) {
+          locatieSelect.value = wine.locatie;
+        }
+      }, 100);
     } else {
       appState.editingWineId = null;
       document.getElementById('wineFormTitle').textContent = 'Nieuwe Wijn';
       document.getElementById('wineForm').reset();
       document.getElementById('wineId').value = '';
       document.getElementById('wineAantalFlessen').value = 1;
+      appState.currentPhotoBase64 = null;
+      this.removePhoto();
+    }
+  },
+
+  loadLocationsIntoDropdown: function() {
+    const locatieSelect = document.getElementById('wineLocatie');
+    if (!locatieSelect) return;
+    
+    const currentValue = locatieSelect.value;
+    
+    // Clear existing options except the first placeholder
+    locatieSelect.innerHTML = '<option value="">Selecteer locatie</option>';
+    
+    // Add locations from state
+    appState.locations.forEach(location => {
+      const option = document.createElement('option');
+      option.value = location.name;
+      option.textContent = location.name;
+      locatieSelect.appendChild(option);
+    });
+    
+    // Restore previously selected value if it exists
+    if (currentValue && Array.from(locatieSelect.options).some(opt => opt.value === currentValue)) {
+      locatieSelect.value = currentValue;
     }
   },
 
@@ -673,6 +909,49 @@ const app = {
   // ============================================================================
   // WINE OPERATIONS
   // ============================================================================
+  handlePhotoUpload: function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      this.showToast('Foto is te groot (max 2MB)', 'error');
+      event.target.value = '';
+      return;
+    }
+    
+    // Check file type
+    if (!file.type.match('image/(jpeg|png)')) {
+      this.showToast('Alleen JPG en PNG bestanden toegestaan', 'error');
+      event.target.value = '';
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      appState.currentPhotoBase64 = e.target.result;
+      this.showPhotoPreview(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  },
+
+  showPhotoPreview: function(base64) {
+    const preview = document.getElementById('photoPreview');
+    const img = document.getElementById('photoPreviewImg');
+    if (preview && img) {
+      img.src = base64;
+      preview.style.display = 'block';
+    }
+  },
+
+  removePhoto: function() {
+    appState.currentPhotoBase64 = null;
+    const preview = document.getElementById('photoPreview');
+    const input = document.getElementById('winePhoto');
+    if (preview) preview.style.display = 'none';
+    if (input) input.value = '';
+  },
+
   saveWine: async function(event) {
     event.preventDefault();
     
@@ -684,6 +963,7 @@ const app = {
     const kleur = document.getElementById('wineKleur').value;
     const locatie = document.getElementById('wineLocatie').value;
     const aantal_flessen = parseInt(document.getElementById('wineAantalFlessen').value);
+    const prijs = parseFloat(document.getElementById('winePrijs').value) || 0;
     
     if (!naam || !wijnhuis || !vintage || !streek || !druif || !kleur || !locatie) {
       this.showToast('Vul alle verplichte velden in');
@@ -702,8 +982,10 @@ const app = {
     try {
       if (appState.editingWineId) {
         // Editing existing wine - use existing ID
+        const existingWine = this.getWineById(appState.editingWineId);
         const wineData = { 
           id: appState.editingWineId,
+          user_id: existingWine.user_id || appState.currentUserId,
           naam, 
           wijnhuis, 
           vintage, 
@@ -711,20 +993,28 @@ const app = {
           druif, 
           kleur, 
           locatie, 
-          aantal_flessen 
+          aantal_flessen,
+          price_per_bottle: prijs,
+          photo_base64: appState.currentPhotoBase64 || existingWine.photo_base64 || null
         };
         
-        const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, wineData);
-        
-        // Ensure ID is numeric
-        updatedWine.id = typeof updatedWine.id === 'string' ? parseInt(updatedWine.id, 10) : updatedWine.id;
-        
-        const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
-        if (wineIndex !== -1) {
-          appState.wines[wineIndex] = updatedWine;
+        if (!appState.isOfflineMode) {
+          const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, wineData);
+          updatedWine.id = typeof updatedWine.id === 'string' ? parseInt(updatedWine.id, 10) : updatedWine.id;
+          
+          const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
+          if (wineIndex !== -1) {
+            appState.wines[wineIndex] = updatedWine;
+          }
+        } else {
+          // Offline mode - update local state only
+          const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
+          if (wineIndex !== -1) {
+            appState.wines[wineIndex] = wineData;
+          }
         }
         
-        console.log(`[saveWine] Updated wine ID ${updatedWine.id} (type: ${typeof updatedWine.id})`);
+        console.log(`[saveWine] Updated wine ID ${appState.editingWineId}`);
         this.showToast('Wijn bijgewerkt', 'success');
       } else {
         // Creating new wine - generate ID based on max existing ID + 1
@@ -732,6 +1022,7 @@ const app = {
         
         const wineData = {
           id: numericId,
+          user_id: appState.currentUserId,
           naam, 
           wijnhuis, 
           vintage, 
@@ -739,22 +1030,30 @@ const app = {
           druif, 
           kleur, 
           locatie, 
-          aantal_flessen
+          aantal_flessen,
+          price_per_bottle: prijs,
+          photo_base64: appState.currentPhotoBase64 || null
         };
         
-        console.log(`[saveWine] Creating new wine with ID: ${numericId} (type: ${typeof numericId})`);
+        console.log(`[saveWine] Creating new wine with ID: ${numericId}`);
         
-        const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
+        if (!appState.isOfflineMode) {
+          const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
+          newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
+          console.log(`[saveWine] Wine created with ID: ${newWine.id}`);
+          appState.wines.push(newWine);
+        } else {
+          // Offline mode - add to local state only
+          appState.wines.push(wineData);
+        }
         
-        // Ensure ID is numeric after response
-        newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
-        
-        console.log(`[saveWine] Wine created with ID: ${newWine.id} (type: ${typeof newWine.id})`);
-        
-        appState.wines.push(newWine);
         this.showToast('Wijn toegevoegd', 'success');
       }
 
+      // Clear photo state
+      appState.currentPhotoBase64 = null;
+      
+      // Refresh the collection view
       this.showCollection();
       
     } catch (error) {
@@ -771,7 +1070,17 @@ const app = {
       this.showToast('Geen wijn geselecteerd');
       return;
     }
+    console.log(`[editWine] Editing wine ID: ${appState.currentWineId}`);
     this.showWineForm(appState.currentWineId);
+  },
+
+  editTastingNote: function() {
+    if (!appState.currentTastingId) {
+      this.showToast('Geen proefnotitie geselecteerd');
+      return;
+    }
+    console.log(`[editTastingNote] Editing tasting note ID: ${appState.currentTastingId}`);
+    this.showTastingForm(appState.currentTastingId);
   },
 
   deleteWine: async function() {
@@ -1075,6 +1384,11 @@ const app = {
       return;
     }
     
+    // Validate offline mode
+    if (appState.isOfflineMode) {
+      // In offline mode, just update local state
+    }
+    
     const formData = new FormData(event.target);
     
     const wijntype = formData.get('wijntype');
@@ -1135,9 +1449,11 @@ const app = {
     try {
       if (appState.currentTastingId) {
         // Editing existing tasting note - use existing ID
+        const existingTasting = this.getTastingById(appState.currentTastingId);
         const tastingData = {
           id: appState.currentTastingId,
           wine_id: appState.currentWineId,
+          user_id: existingTasting.user_id || appState.currentUserId,
           datum: document.getElementById('tastingDatum').value,
           wijntype: wijntype,
           kleur: kleur,
@@ -1158,21 +1474,28 @@ const app = {
           notities: document.getElementById('tastingNotities').value.trim()
         };
         
-        const updatedTasting = await api.put(
-          `${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`,
-          tastingData
-        );
-        
-        // Ensure IDs are numeric
-        updatedTasting.id = typeof updatedTasting.id === 'string' ? parseInt(updatedTasting.id, 10) : updatedTasting.id;
-        updatedTasting.wine_id = typeof updatedTasting.wine_id === 'string' ? parseInt(updatedTasting.wine_id, 10) : updatedTasting.wine_id;
-        
-        const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
-        if (tastingIndex !== -1) {
-          appState.tastingNotes[tastingIndex] = updatedTasting;
+        if (!appState.isOfflineMode) {
+          const updatedTasting = await api.put(
+            `${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`,
+            tastingData
+          );
+          
+          updatedTasting.id = typeof updatedTasting.id === 'string' ? parseInt(updatedTasting.id, 10) : updatedTasting.id;
+          updatedTasting.wine_id = typeof updatedTasting.wine_id === 'string' ? parseInt(updatedTasting.wine_id, 10) : updatedTasting.wine_id;
+          
+          const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
+          if (tastingIndex !== -1) {
+            appState.tastingNotes[tastingIndex] = updatedTasting;
+          }
+        } else {
+          // Offline mode - update local state only
+          const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
+          if (tastingIndex !== -1) {
+            appState.tastingNotes[tastingIndex] = tastingData;
+          }
         }
         
-        console.log(`[saveTastingNote] Updated tasting note ID ${updatedTasting.id} (type: ${typeof updatedTasting.id})`);
+        console.log(`[saveTastingNote] Updated tasting note ID ${appState.currentTastingId}`);
         this.showToast('Proefnotitie bijgewerkt', 'success');
       } else {
         // Creating new tasting note - generate ID based on max existing ID + 1
@@ -1181,6 +1504,7 @@ const app = {
         const tastingData = {
           id: numericId,
           wine_id: appState.currentWineId,
+          user_id: appState.currentUserId,
           datum: document.getElementById('tastingDatum').value,
           wijntype: wijntype,
           kleur: kleur,
@@ -1201,17 +1525,19 @@ const app = {
           notities: document.getElementById('tastingNotities').value.trim()
         };
         
-        console.log(`[saveTastingNote] Creating new tasting note with ID: ${numericId} (type: ${typeof numericId})`);
+        console.log(`[saveTastingNote] Creating new tasting note with ID: ${numericId}`);
         
-        const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
+        if (!appState.isOfflineMode) {
+          const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
+          newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
+          newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
+          console.log(`[saveTastingNote] Tasting note created with ID: ${newTasting.id}`);
+          appState.tastingNotes.push(newTasting);
+        } else {
+          // Offline mode - add to local state only
+          appState.tastingNotes.push(tastingData);
+        }
         
-        // Ensure IDs are numeric after response
-        newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
-        newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
-        
-        console.log(`[saveTastingNote] Tasting note created with ID: ${newTasting.id} (type: ${typeof newTasting.id})`);
-        
-        appState.tastingNotes.push(newTasting);
         this.showToast('Proefnotitie opgeslagen', 'success');
       }
 
@@ -1297,13 +1623,19 @@ const app = {
       const cardClass = isOutOfStock ? 'wine-card wine-card--out-of-stock' : 'wine-card';
       const tastingCount = this.getTastingsForWine(wine.id).length;
       const kleurBadge = wine.kleur ? `<span class="kleur-badge kleur-badge--${wine.kleur.toLowerCase()}">${wine.kleur}</span>` : '';
+      const price = wine.price_per_bottle || 0;
+      const totalValue = price * (wine.aantal_flessen || 0);
+      const owner = appState.users.find(u => u.id === wine.user_id);
       
-      if (API_CONFIG.debug && Math.random() < 0.1) { // Log 10% of wines to avoid console spam
+      if (API_CONFIG.debug && Math.random() < 0.1) {
         console.log(`[renderWines] Wine:`, { id: wine.id, naam: wine.naam, type: typeof wine.id });
       }
       
       return `
         <div class="${cardClass}" onclick="app.showWineDetail(${wine.id})">
+          ${wine.photo_base64 ? `
+            <img src="${wine.photo_base64}" class="wine-photo-thumbnail" alt="${wine.naam}" style="width: 100%; height: 150px; object-fit: cover; margin-bottom: var(--space-12); border-radius: var(--radius-base);">
+          ` : ''}
           <div class="wine-card-header">
             <h3>${wine.naam}</h3>
             ${isOutOfStock ? '<span class="stock-icon out-of-stock">📭</span>' : '<span class="stock-icon in-stock">🍷</span>'}
@@ -1311,14 +1643,16 @@ const app = {
           <p><strong>${wine.wijnhuis}</strong></p>
           <p>${wine.vintage} • ${wine.streek}</p>
           <p>${wine.druif}</p>
+          ${price > 0 ? `<p style="color: var(--color-primary); font-weight: var(--font-weight-medium); margin-top: var(--space-8);">€${price.toFixed(2)}/fles • €${totalValue.toFixed(2)} totaal</p>` : ''}
           <div class="wine-card-footer">
             ${kleurBadge}
             <span class="location-badge">${wine.locatie}</span>
             <span class="stock-badge ${isOutOfStock ? 'stock-badge--out' : 'stock-badge--in'}">
-              ${wine.aantal_flessen} fles${wine.aantal_flessen !== 1 ? 'sen' : ''} • ${status}
+              ${wine.aantal_flessen} fles${wine.aantal_flessen !== 1 ? 'sen' : ''}
             </span>
           </div>
-          ${tastingCount > 0 ? `<p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-top: var(--space-8);">📝 ${tastingCount} proefnotitie${tastingCount !== 1 ? 's' : ''}</p>` : ''}
+          ${owner ? `<p style="font-size: var(--font-size-xs); color: var(--color-text-secondary); margin-top: var(--space-8);">👤 ${owner.name}</p>` : ''}
+          ${tastingCount > 0 ? `<p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-top: var(--space-4);">📝 ${tastingCount} proefnotitie${tastingCount !== 1 ? 's' : ''}</p>` : ''}
         </div>
       `;
     }).join('');
@@ -1338,8 +1672,12 @@ const app = {
     
     const status = this.getWineStatus(wine);
     const isOutOfStock = wine.aantal_flessen === 0;
+    const price = wine.price_per_bottle || 0;
+    const totalValue = price * (wine.aantal_flessen || 0);
+    const owner = appState.users.find(u => u.id === wine.user_id);
     
     document.getElementById('wineDetailInfo').innerHTML = `
+      ${wine.photo_base64 ? `<img src="${wine.photo_base64}" class="wine-photo" alt="${wine.naam}">` : ''}
       <div class="bottle-count-section">
         <div class="bottle-count-display">
           <span class="bottle-icon">${isOutOfStock ? '📭' : '🍷'}</span>
@@ -1371,6 +1709,16 @@ const app = {
         <dd>${wine.druif}</dd>
         <dt>Locatie</dt>
         <dd>${wine.locatie}</dd>
+        ${price > 0 ? `
+          <dt>Prijs per fles</dt>
+          <dd>€${price.toFixed(2)}</dd>
+          <dt>Totale waarde</dt>
+          <dd style="font-weight: var(--font-weight-bold); color: var(--color-primary);">€${totalValue.toFixed(2)}</dd>
+        ` : ''}
+        ${owner ? `
+          <dt>Eigenaar</dt>
+          <dd>👤 ${owner.name}</dd>
+        ` : ''}
       </dl>
     `;
 
@@ -1541,6 +1889,8 @@ const app = {
   },
 
   populateTastingForm: function(tasting) {
+    console.log('[populateTastingForm] Populating form with tasting:', tasting);
+    
     document.getElementById('tastingId').value = tasting.id;
     document.getElementById('tastingDatum').value = tasting.datum;
     document.getElementById('tastingWineId').value = tasting.wine_id;
@@ -1628,6 +1978,772 @@ const app = {
     setTimeout(() => {
       this.updateStarCalculation();
     }, 100);
+    
+    console.log('[populateTastingForm] Form populated successfully');
+  },
+
+  // ============================================================================
+  // LOCATIONS MANAGEMENT
+  // ============================================================================
+  showLocations: function() {
+    appState.currentView = 'locations';
+    this.hideAllViews();
+    this.updateNavigation('locations');
+    document.getElementById('locationsView').style.display = 'block';
+    this.renderLocations();
+  },
+
+  showLocationForm: function(locationId = null) {
+    const modal = document.getElementById('locationFormModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    if (locationId) {
+      const location = appState.locations.find(l => l.id === locationId);
+      if (!location) {
+        this.showToast('Locatie niet gevonden');
+        return;
+      }
+      document.getElementById('locationFormTitle').textContent = 'Locatie Bewerken';
+      document.getElementById('locationId').value = location.id;
+      document.getElementById('locationName').value = location.name;
+      document.getElementById('locationTemperature').value = location.temperature || '';
+    } else {
+      document.getElementById('locationFormTitle').textContent = 'Nieuwe Locatie';
+      document.getElementById('locationForm').reset();
+      document.getElementById('locationId').value = '';
+    }
+  },
+
+  closeLocationForm: function() {
+    const modal = document.getElementById('locationFormModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  },
+
+  saveLocation: async function(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('locationName').value.trim();
+    const temperature = parseFloat(document.getElementById('locationTemperature').value) || null;
+    const locationIdInput = document.getElementById('locationId').value;
+    
+    if (!name) {
+      this.showToast('Vul een naam in');
+      return;
+    }
+    
+    if (temperature !== null && (temperature < 0 || temperature > 30)) {
+      this.showToast('Temperatuur moet tussen 0 en 30°C zijn');
+      return;
+    }
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    
+    try {
+      if (locationIdInput) {
+        // Edit existing location
+        const locationId = parseInt(locationIdInput);
+        const locationData = { id: locationId, name, temperature };
+        
+        if (!appState.isOfflineMode) {
+          const updatedLocation = await api.put(`${API_CONFIG.endpoints.locations}/${locationId}`, locationData);
+          updatedLocation.id = typeof updatedLocation.id === 'string' ? parseInt(updatedLocation.id, 10) : updatedLocation.id;
+          
+          const index = appState.locations.findIndex(l => l.id === locationId);
+          if (index !== -1) {
+            appState.locations[index] = updatedLocation;
+          }
+        } else {
+          // Offline mode - update local state only
+          const index = appState.locations.findIndex(l => l.id === locationId);
+          if (index !== -1) {
+            appState.locations[index] = locationData;
+          }
+        }
+        
+        this.showToast('Locatie bijgewerkt', 'success');
+      } else {
+        // Create new location
+        const maxId = appState.locations.length > 0 
+          ? Math.max(...appState.locations.map(l => parseInt(l.id) || 0))
+          : 0;
+        const newId = maxId + 1;
+        
+        const locationData = { id: newId, name, temperature };
+        
+        if (!appState.isOfflineMode) {
+          const newLocation = await api.post(API_CONFIG.endpoints.locations, locationData);
+          newLocation.id = typeof newLocation.id === 'string' ? parseInt(newLocation.id, 10) : newLocation.id;
+          appState.locations.push(newLocation);
+        } else {
+          // Offline mode - add to local state only
+          appState.locations.push(locationData);
+        }
+        
+        this.showToast('Locatie toegevoegd', 'success');
+      }
+      
+      this.closeLocationForm();
+      this.renderLocations();
+      
+    } catch (error) {
+      console.error('Failed to save location:', error);
+      this.showToast(error.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+    }
+  },
+
+  deleteLocation: async function(locationId) {
+    const location = appState.locations.find(l => l.id === locationId);
+    if (!location) {
+      this.showToast('Locatie niet gevonden');
+      return;
+    }
+    
+    const winesInLocation = appState.wines.filter(w => w.locatie === location.name).length;
+    
+    let confirmMessage = `Weet je zeker dat je "${location.name}" wilt verwijderen?`;
+    if (winesInLocation > 0) {
+      confirmMessage += `\n\nLet op: ${winesInLocation} wijn${winesInLocation !== 1 ? 'en' : ''} ${winesInLocation !== 1 ? 'hebben' : 'heeft'} deze locatie. Deze wijnen blijven bestaan maar hun locatie wordt ongeldig.`;
+    }
+    
+    if (confirm(confirmMessage)) {
+      showLoadingOverlay('Locatie verwijderen...');
+      
+      try {
+        await api.delete(`${API_CONFIG.endpoints.locations}/${locationId}`);
+        appState.locations = appState.locations.filter(l => l.id !== locationId);
+        
+        this.showToast('Locatie verwijderd', 'success');
+        this.renderLocations();
+        
+      } catch (error) {
+        console.error('Failed to delete location:', error);
+        this.showToast(error.message, 'error');
+      } finally {
+        hideLoadingOverlay();
+      }
+    }
+  },
+
+  getTemperatureClass: function(temp) {
+    if (temp === null || temp === undefined) return '';
+    if (temp < 15) return 'cold';
+    if (temp <= 18) return 'ideal';
+    return 'warm';
+  },
+
+  getTemperatureIcon: function(temp) {
+    if (temp === null || temp === undefined) return '';
+    if (temp < 15) return '❄️';
+    if (temp <= 18) return '🌡️';
+    return '🔥';
+  },
+
+  renderLocations: function() {
+    const locationsList = document.getElementById('locationsList');
+    if (!locationsList) return;
+    
+    if (appState.locations.length === 0) {
+      locationsList.innerHTML = '<div class="empty-state">Geen locaties gevonden. Klik op "+ Nieuwe Locatie" om er een toe te voegen.</div>';
+      return;
+    }
+    
+    locationsList.innerHTML = appState.locations.map(location => {
+      const winesInLocation = appState.wines.filter(w => w.locatie === location.name);
+      const wineCount = winesInLocation.length;
+      const totalBottles = winesInLocation.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
+      const tempClass = this.getTemperatureClass(location.temperature);
+      const tempIcon = this.getTemperatureIcon(location.temperature);
+      
+      return `
+        <div class="location-card">
+          <div class="location-header">
+            <div>
+              <h3>📍 ${location.name}</h3>
+              ${location.temperature !== null && location.temperature !== undefined ? `
+                <span class="temp-indicator ${tempClass}">${tempIcon} ${location.temperature}°C</span>
+              ` : ''}
+            </div>
+            <div class="location-actions">
+              <button class="btn btn--sm btn--secondary" onclick="app.showLocationForm(${location.id})">Bewerken</button>
+              <button class="btn btn--sm btn--outline" onclick="app.deleteLocation(${location.id})">Verwijderen</button>
+            </div>
+          </div>
+          <div class="location-stats">
+            <div class="location-stat">
+              <span class="location-stat-value">${wineCount}</span>
+              <span class="location-stat-label">Wijn${wineCount !== 1 ? 'en' : ''}</span>
+            </div>
+            <div class="location-stat">
+              <span class="location-stat-value">${totalBottles}</span>
+              <span class="location-stat-label">Fles${totalBottles !== 1 ? 'sen' : ''}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  // ============================================================================
+  // STATISTICS
+  // ============================================================================
+  showStatistics: function() {
+    appState.currentView = 'statistics';
+    this.hideAllViews();
+    this.updateNavigation('statistics');
+    document.getElementById('statisticsView').style.display = 'block';
+    this.renderStatistics();
+  },
+
+  renderStatistics: function() {
+    const container = document.getElementById('statisticsContainer');
+    if (!container) return;
+    
+    if (appState.wines.length === 0) {
+      container.innerHTML = '<div class="empty-stat">Geen wijnen om statistieken voor te tonen. Voeg eerst wijnen toe.</div>';
+      return;
+    }
+    
+    if (appState.locations.length === 0) {
+      container.innerHTML = '<div class="empty-stat">Geen locaties gevonden. Voeg eerst locaties toe via 📍 Locaties.</div>';
+      return;
+    }
+    
+    let html = '';
+    
+    appState.locations.forEach(location => {
+      const winesInLocation = appState.wines.filter(w => w.locatie === location.name);
+      const tempClass = this.getTemperatureClass(location.temperature);
+      const tempIcon = this.getTemperatureIcon(location.temperature);
+      
+      if (winesInLocation.length === 0) {
+        html += `
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <h2>📍 ${location.name}</h2>
+              ${location.temperature !== null && location.temperature !== undefined ? `
+                <span class="temp-indicator ${tempClass}">${tempIcon} ${location.temperature}°C</span>
+              ` : ''}
+            </div>
+            <div class="empty-stat">Geen wijnen op deze locatie</div>
+          </div>
+        `;
+        return;
+      }
+      
+      const wineCount = winesInLocation.length;
+      const totalBottles = winesInLocation.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
+      const avgVintage = Math.round(
+        winesInLocation.reduce((sum, w) => sum + (w.vintage || 0), 0) / wineCount
+      );
+      
+      // Wine type breakdown
+      const witCount = winesInLocation.filter(w => w.kleur === 'Wit').length;
+      const roseCount = winesInLocation.filter(w => w.kleur === 'Rosé').length;
+      const roodCount = winesInLocation.filter(w => w.kleur === 'Rood').length;
+      
+      // Vintage distribution
+      const vintageMap = {};
+      winesInLocation.forEach(w => {
+        const vintage = w.vintage || 'Onbekend';
+        vintageMap[vintage] = (vintageMap[vintage] || 0) + (w.aantal_flessen || 0);
+      });
+      const sortedVintages = Object.entries(vintageMap)
+        .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
+        .slice(0, 5); // Top 5 vintages
+      const maxBottles = Math.max(...sortedVintages.map(v => v[1]));
+      
+      html += `
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <h2>📍 ${location.name}</h2>
+            ${location.temperature !== null && location.temperature !== undefined ? `
+              <span class="temp-indicator ${tempClass}">${tempIcon} ${location.temperature}°C</span>
+            ` : ''}
+          </div>
+          
+          <div class="stat-grid">
+            <div class="stat-item">
+              <div class="stat-item-icon">🍷</div>
+              <span class="stat-item-value">${wineCount}</span>
+              <span class="stat-item-label">Wijn${wineCount !== 1 ? 'en' : ''}</span>
+            </div>
+            <div class="stat-item">
+              <div class="stat-item-icon">🍾</div>
+              <span class="stat-item-value">${totalBottles}</span>
+              <span class="stat-item-label">Fles${totalBottles !== 1 ? 'sen' : ''}</span>
+            </div>
+            <div class="stat-item">
+              <div class="stat-item-icon">📅</div>
+              <span class="stat-item-value">${avgVintage}</span>
+              <span class="stat-item-label">Gem. Vintage</span>
+            </div>
+          </div>
+          
+          <h4 style="margin: var(--space-20) 0 var(--space-12) 0; font-size: var(--font-size-lg);">Verdeling per Type</h4>
+          <div class="wine-type-breakdown">
+            ${roodCount > 0 ? `
+              <div class="wine-type-stat">
+                <span class="wine-type-stat-icon">🔴</span>
+                <span class="wine-type-stat-text">${roodCount} Rood</span>
+              </div>
+            ` : ''}
+            ${witCount > 0 ? `
+              <div class="wine-type-stat">
+                <span class="wine-type-stat-icon">⚪</span>
+                <span class="wine-type-stat-text">${witCount} Wit</span>
+              </div>
+            ` : ''}
+            ${roseCount > 0 ? `
+              <div class="wine-type-stat">
+                <span class="wine-type-stat-icon">🧡</span>
+                <span class="wine-type-stat-text">${roseCount} Rosé</span>
+              </div>
+            ` : ''}
+          </div>
+          
+          ${sortedVintages.length > 0 ? `
+            <div class="vintage-chart">
+              <h4 style="margin: 0 0 var(--space-12) 0; font-size: var(--font-size-base); font-weight: var(--font-weight-semibold);">Top Vintages (aantal flessen)</h4>
+              <div class="vintage-bars">
+                ${sortedVintages.map(([vintage, count]) => {
+                  const percentage = (count / maxBottles) * 100;
+                  return `
+                    <div class="vintage-bar-row">
+                      <span class="vintage-label">${vintage}</span>
+                      <div class="vintage-bar-container">
+                        <div class="vintage-bar-fill" style="width: ${percentage}%">
+                          <span class="vintage-count">${count}</span>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  },
+
+  // ============================================================================
+  // VALUE DASHBOARD
+  // ============================================================================
+  showValueDashboard: function() {
+    appState.currentView = 'value';
+    this.hideAllViews();
+    this.updateNavigation('value');
+    document.getElementById('valueDashboardView').style.display = 'block';
+    this.renderValueDashboard();
+  },
+
+  renderValueDashboard: function() {
+    const container = document.getElementById('valueDashboardContainer');
+    if (!container) return;
+    
+    if (appState.wines.length === 0) {
+      container.innerHTML = '<div class="empty-stat">Geen wijnen om waardes voor te berekenen</div>';
+      return;
+    }
+    
+    // Calculate total value
+    const totalValue = appState.wines.reduce((sum, w) => {
+      const price = w.price_per_bottle || 0;
+      const bottles = w.aantal_flessen || 0;
+      return sum + (price * bottles);
+    }, 0);
+    
+    const totalBottles = appState.wines.reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
+    const avgPrice = totalBottles > 0 ? totalValue / totalBottles : 0;
+    
+    // Value per location
+    const locationValues = {};
+    appState.wines.forEach(w => {
+      const value = (w.price_per_bottle || 0) * (w.aantal_flessen || 0);
+      locationValues[w.locatie] = (locationValues[w.locatie] || 0) + value;
+    });
+    
+    // Value per wine type
+    const typeValues = {};
+    appState.wines.forEach(w => {
+      const value = (w.price_per_bottle || 0) * (w.aantal_flessen || 0);
+      typeValues[w.kleur] = (typeValues[w.kleur] || 0) + value;
+    });
+    
+    // Most expensive wines
+    const wineValues = appState.wines.map(w => ({
+      ...w,
+      totalValue: (w.price_per_bottle || 0) * (w.aantal_flessen || 0)
+    })).filter(w => w.totalValue > 0).sort((a, b) => b.totalValue - a.totalValue);
+    
+    const topExpensive = wineValues.slice(0, 5);
+    
+    let html = `
+      <div class="value-card">
+        <h3>Totaal Overzicht</h3>
+        <div class="value-grid">
+          <div class="value-item">
+            <span class="value-item-value">€${totalValue.toFixed(2)}</span>
+            <span class="value-item-label">Totale Voorraadwaarde</span>
+          </div>
+          <div class="value-item">
+            <span class="value-item-value">${totalBottles}</span>
+            <span class="value-item-label">Totaal Flessen</span>
+          </div>
+          <div class="value-item">
+            <span class="value-item-value">€${avgPrice.toFixed(2)}</span>
+            <span class="value-item-label">Gemiddelde Prijs/Fles</span>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Value per location
+    if (Object.keys(locationValues).length > 0) {
+      html += `
+        <div class="value-card">
+          <h3>Waarde per Locatie</h3>
+          <div class="wine-value-list">
+            ${Object.entries(locationValues).sort((a, b) => b[1] - a[1]).map(([loc, val]) => `
+              <div class="wine-value-item">
+                <span class="wine-value-item-name">📍 ${loc}</span>
+                <span class="wine-value-item-price">€${val.toFixed(2)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Value per type
+    if (Object.keys(typeValues).length > 0) {
+      html += `
+        <div class="value-card">
+          <h3>Waarde per Wijntype</h3>
+          <div class="wine-value-list">
+            ${Object.entries(typeValues).sort((a, b) => b[1] - a[1]).map(([type, val]) => `
+              <div class="wine-value-item">
+                <span class="wine-value-item-name">🍷 ${type}</span>
+                <span class="wine-value-item-price">€${val.toFixed(2)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Top expensive wines
+    if (topExpensive.length > 0) {
+      html += `
+        <div class="value-card">
+          <h3>Meest Waardevolle Wijnen (Top 5)</h3>
+          <div class="wine-value-list">
+            ${topExpensive.map(w => `
+              <div class="wine-value-item" style="cursor: pointer;" onclick="app.showWineDetail(${w.id})">
+                <span class="wine-value-item-name">${w.naam} (${w.aantal_flessen}x €${(w.price_per_bottle || 0).toFixed(2)})</span>
+                <span class="wine-value-item-price">€${w.totalValue.toFixed(2)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html;
+  },
+
+  // ============================================================================
+  // EXPORT FUNCTIONALITY
+  // ============================================================================
+  exportJSON: function() {
+    const data = {
+      wines: appState.wines,
+      tastingNotes: appState.tastingNotes,
+      locations: appState.locations,
+      users: appState.users
+    };
+    
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `wijnkelder_backup_${date}.json`;
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+    this.showToast(`Database geëxporteerd als ${filename}`, 'success');
+  },
+
+  exportWinesCSV: function() {
+    if (appState.wines.length === 0) {
+      this.showToast('Geen wijnen om te exporteren');
+      return;
+    }
+    
+    const headers = ['ID', 'Naam', 'Wijnhuis', 'Vintage', 'Streek', 'Druif', 'Kleur', 'Locatie', 'Flessen', 'Prijs/Fles', 'Totale Waarde'];
+    const rows = appState.wines.map(w => [
+      w.id,
+      w.naam,
+      w.wijnhuis,
+      w.vintage,
+      w.streek,
+      w.druif,
+      w.kleur,
+      w.locatie,
+      w.aantal_flessen,
+      (w.price_per_bottle || 0).toFixed(2),
+      ((w.price_per_bottle || 0) * (w.aantal_flessen || 0)).toFixed(2)
+    ]);
+    
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `wijnen_export_${date}.csv`;
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+    this.showToast(`Wijnen geëxporteerd als ${filename}`, 'success');
+  },
+
+  exportTastingsCSV: function() {
+    if (appState.tastingNotes.length === 0) {
+      this.showToast('Geen proefnotities om te exporteren');
+      return;
+    }
+    
+    const headers = ['ID', 'Wijn ID', 'Wijn Naam', 'Datum', 'Wijntype', 'Sterren', 'Notities'];
+    const rows = appState.tastingNotes.map(t => {
+      const wine = this.getWineById(t.wine_id);
+      const totalStars = ((t.automatic_stars || 0) + (t.manual_stars || 0)) / 2;
+      return [
+        t.id,
+        t.wine_id,
+        wine ? wine.naam : 'Onbekend',
+        t.datum,
+        t.wijntype,
+        totalStars.toFixed(1),
+        (t.notities || '').replace(/"/g, '""')
+      ];
+    });
+    
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `proefnotities_export_${date}.csv`;
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+    this.showToast(`Proefnotities geëxporteerd als ${filename}`, 'success');
+  },
+
+  // ============================================================================
+  // USER MANAGEMENT
+  // ============================================================================
+  showUsers: function() {
+    appState.currentView = 'users';
+    this.hideAllViews();
+    this.updateNavigation('users');
+    document.getElementById('usersView').style.display = 'block';
+    this.renderUsers();
+  },
+
+  renderUsers: function() {
+    const container = document.getElementById('usersContainer');
+    if (!container) return;
+    
+    if (appState.users.length === 0) {
+      container.innerHTML = '<div class="empty-stat">Geen gebruikers gevonden</div>';
+      return;
+    }
+    
+    container.innerHTML = appState.users.map(user => {
+      const wineCount = appState.wines.filter(w => w.user_id === user.id).length;
+      const tastingCount = appState.tastingNotes.filter(t => t.user_id === user.id).length;
+      const isCurrentUser = user.id === appState.currentUserId;
+      
+      return `
+        <div class="user-card">
+          <div class="user-card-color" style="background: ${user.color};"></div>
+          <div class="user-card-info">
+            <h3>${user.name} ${isCurrentUser ? '(actief)' : ''}</h3>
+            <p>${user.email || 'Geen email'}</p>
+            <p style="margin-top: var(--space-4);">${wineCount} wijn${wineCount !== 1 ? 'en' : ''}, ${tastingCount} proefnotitie${tastingCount !== 1 ? 's' : ''}</p>
+          </div>
+          <div class="user-card-actions">
+            <button class="btn btn--sm btn--secondary" onclick="app.showUserForm(${user.id})">Bewerken</button>
+            ${appState.users.length > 1 ? `<button class="btn btn--sm btn--outline" onclick="app.deleteUser(${user.id})">Verwijderen</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  showUserForm: function(userId = null) {
+    const modal = document.getElementById('userFormModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    if (userId) {
+      const user = appState.users.find(u => u.id === userId);
+      if (!user) {
+        this.showToast('Gebruiker niet gevonden');
+        return;
+      }
+      document.getElementById('userFormTitle').textContent = 'Gebruiker Bewerken';
+      document.getElementById('userId').value = user.id;
+      document.getElementById('userName').value = user.name;
+      document.getElementById('userEmail').value = user.email || '';
+      
+      const colorRadio = document.querySelector(`input[name="userColor"][value="${user.color}"]`);
+      if (colorRadio) colorRadio.checked = true;
+    } else {
+      document.getElementById('userFormTitle').textContent = 'Nieuwe Gebruiker';
+      document.getElementById('userForm').reset();
+      document.getElementById('userId').value = '';
+    }
+  },
+
+  closeUserForm: function() {
+    const modal = document.getElementById('userFormModal');
+    if (modal) modal.style.display = 'none';
+  },
+
+  saveUser: async function(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('userName').value.trim();
+    const email = document.getElementById('userEmail').value.trim();
+    const color = document.querySelector('input[name="userColor"]:checked')?.value;
+    const userIdInput = document.getElementById('userId').value;
+    
+    if (!name || !color) {
+      this.showToast('Vul naam en kleur in');
+      return;
+    }
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    
+    try {
+      if (userIdInput) {
+        // Edit existing user
+        const userId = parseInt(userIdInput);
+        const userData = { id: userId, name, email, color };
+        
+        if (!appState.isOfflineMode) {
+          const updatedUser = await api.put(`/users/${userId}`, userData);
+          const index = appState.users.findIndex(u => u.id === userId);
+          if (index !== -1) appState.users[index] = updatedUser;
+        } else {
+          const index = appState.users.findIndex(u => u.id === userId);
+          if (index !== -1) appState.users[index] = userData;
+        }
+        
+        this.showToast('Gebruiker bijgewerkt', 'success');
+      } else {
+        // Create new user
+        const newId = this.getNextUserId();
+        const userData = { id: newId, name, email, color };
+        
+        if (!appState.isOfflineMode) {
+          const newUser = await api.post('/users', userData);
+          appState.users.push(newUser);
+        } else {
+          appState.users.push(userData);
+        }
+        
+        this.showToast('Gebruiker toegevoegd', 'success');
+      }
+      
+      this.closeUserForm();
+      this.updateCurrentUserDisplay();
+      this.renderUsers();
+      
+    } catch (error) {
+      console.error('Failed to save user:', error);
+      this.showToast(error.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+    }
+  },
+
+  deleteUser: async function(userId) {
+    if (appState.users.length <= 1) {
+      this.showToast('Er moet minimaal 1 gebruiker zijn');
+      return;
+    }
+    
+    if (userId === appState.currentUserId) {
+      this.showToast('Je kunt de actieve gebruiker niet verwijderen');
+      return;
+    }
+    
+    const user = appState.users.find(u => u.id === userId);
+    if (!user) return;
+    
+    if (confirm(`Weet je zeker dat je gebruiker "${user.name}" wilt verwijderen?`)) {
+      try {
+        if (!appState.isOfflineMode) {
+          await api.delete(`/users/${userId}`);
+        }
+        
+        appState.users = appState.users.filter(u => u.id !== userId);
+        this.showToast('Gebruiker verwijderd', 'success');
+        this.renderUsers();
+        
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+        this.showToast(error.message, 'error');
+      }
+    }
+  },
+
+  showSettings: function() {
+    appState.currentView = 'settings';
+    this.hideAllViews();
+    this.updateNavigation('settings');
+    document.getElementById('settingsView').style.display = 'block';
+  },
+
+  // ============================================================================
+  // EXTENSIONS VIEW
+  // ============================================================================
+  showExtensions: function() {
+    appState.currentView = 'extensions';
+    this.hideAllViews();
+    this.updateNavigation('extensions');
+    document.getElementById('extensionsView').style.display = 'block';
   },
 
   // ============================================================================

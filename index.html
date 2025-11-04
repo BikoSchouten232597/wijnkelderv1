@@ -8,11 +8,36 @@
 </head>
 <body>
     <div id="app">
+        <!-- Navigation Menu -->
+        <nav id="mainNav" class="main-nav">
+            <button class="nav-item active" data-view="collection" onclick="app.showCollection()">
+                🍷 Mijn Kelder
+            </button>
+            <button class="nav-item" data-view="statistics" onclick="app.showStatistics()">
+                📊 Statistieken
+            </button>
+            <button class="nav-item" data-view="value" onclick="app.showValueDashboard()">
+                💰 Voorraadwaarde
+            </button>
+            <button class="nav-item" data-view="locations" onclick="app.showLocations()">
+                📍 Locaties
+            </button>
+            <button class="nav-item" data-view="users" onclick="app.showUsers()">
+                👥 Gebruikers
+            </button>
+            <button class="nav-item" data-view="settings" onclick="app.showSettings()">
+                ⚙️ Instellingen
+            </button>
+        </nav>
+
         <!-- Wine Collection View -->
         <div id="collectionView" class="view">
             <header class="app-header">
                 <h1>🍷 Mijn Wijnkelder</h1>
-                <div style="display: flex; align-items: center; gap: var(--space-12);">
+                <div style="display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap;">
+                    <div id="currentUserBadge" class="current-user-badge" onclick="app.showUserSelector()" title="Klik om gebruiker te wisselen">
+                        <span>👤 <span id="currentUserName">Laden...</span></span>
+                    </div>
                     <div id="connectionStatus" class="connection-status" onclick="app.showApiConfig()" title="Klik om API instellingen te openen">
                         <span class="status-dot"></span>
                         <span class="status-text">Verbinden...</span>
@@ -88,13 +113,28 @@
                             <option value="">Selecteer locatie</option>
                             <option value="Kelder">Kelder</option>
                             <option value="Klimaatkast">Klimaatkast</option>
-                            <option value="Koelkast">Koelkast</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Aantal flessen *</label>
                         <input type="number" id="wineAantalFlessen" class="form-control" min="0" value="1" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Prijs per fles (€)</label>
+                        <input type="number" id="winePrijs" class="form-control" min="0" step="0.01" placeholder="0.00">
+                        <p class="form-helper">Optioneel - voor voorraadwaarde berekening</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Etiket foto</label>
+                        <input type="file" id="winePhoto" class="form-control" accept="image/jpeg,image/png">
+                        <p class="form-helper">Upload een foto van het etiket (JPG/PNG, max 2MB)</p>
+                        <div id="photoPreview" style="margin-top: var(--space-12); display: none;">
+                            <img id="photoPreviewImg" style="max-width: 200px; max-height: 200px; border-radius: var(--radius-base); border: 1px solid var(--color-border);">
+                            <button type="button" class="btn btn--sm btn--outline" onclick="app.removePhoto()" style="margin-top: var(--space-8);">Verwijder foto</button>
+                        </div>
                     </div>
                     
                     <div class="form-actions">
@@ -468,6 +508,174 @@
             </div>
         </div>
 
+        <!-- Locations Management View -->
+        <div id="locationsView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>📍 Locaties Beheren</h1>
+                <button class="btn btn--primary" onclick="app.showLocationForm()">+ Nieuwe Locatie</button>
+            </header>
+            
+            <div class="locations-container">
+                <div id="locationsList" class="locations-list"></div>
+            </div>
+        </div>
+
+        <!-- Location Form Modal -->
+        <div id="locationFormModal" class="modal" style="display: none;">
+            <div class="modal-backdrop" onclick="app.closeLocationForm()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="locationFormTitle">Nieuwe Locatie</h2>
+                    <button class="btn-close" onclick="app.closeLocationForm()" aria-label="Sluiten">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="locationForm" onsubmit="app.saveLocation(event)">
+                        <input type="hidden" id="locationId">
+                        <div class="form-group">
+                            <label class="form-label">Naam *</label>
+                            <input type="text" id="locationName" class="form-control" placeholder="Bijv. Kelder, Klimaatkast, Wijnkast" required>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn--secondary" onclick="app.closeLocationForm()">Annuleren</button>
+                            <button type="submit" class="btn btn--primary">Opslaan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics View -->
+        <div id="statisticsView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>📊 Statistieken per Locatie</h1>
+            </header>
+            
+            <div id="statisticsContainer" class="statistics-container"></div>
+        </div>
+
+        <!-- Value Dashboard View -->
+        <div id="valueDashboardView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>💰 Voorraadwaarde</h1>
+            </header>
+            <div id="valueDashboardContainer" class="value-dashboard-container"></div>
+        </div>
+
+        <!-- Users View -->
+        <div id="usersView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>👥 Gebruikers Beheren</h1>
+                <button class="btn btn--primary" onclick="app.showUserForm()">+ Nieuwe Gebruiker</button>
+            </header>
+            <div id="usersContainer" class="users-container"></div>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settingsView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>⚙️ Instellingen</h1>
+            </header>
+            <div class="settings-container">
+                <div class="settings-section">
+                    <h3>Database Export</h3>
+                    <p>Maak een backup van je wijnkelder database</p>
+                    <div style="display: flex; gap: var(--space-12); margin-top: var(--space-16); flex-wrap: wrap;">
+                        <button class="btn btn--primary" onclick="app.exportJSON()">💾 Download JSON</button>
+                        <button class="btn btn--secondary" onclick="app.exportWinesCSV()">📄 Export Wijnen (CSV)</button>
+                        <button class="btn btn--secondary" onclick="app.exportTastingsCSV()">📄 Export Proefnotities (CSV)</button>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>API Configuratie</h3>
+                    <p>Beheer de verbinding met je JSON Server database</p>
+                    <button class="btn btn--secondary" onclick="app.showApiConfig()" style="margin-top: var(--space-16);">⚙️ Open API Instellingen</button>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Over</h3>
+                    <p><strong>Wijnkelder Beheer v2.0</strong></p>
+                    <p>Een complete oplossing voor het beheren van je wijnverzameling</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Extensions View -->
+        <div id="extensionsView" class="view" style="display: none;">
+            <header class="app-header">
+                <h1>💡 Mogelijke Uitbreidingen</h1>
+            </header>
+            
+            <div class="extensions-container">
+                <p class="extensions-intro">Hier zijn enkele ideeën voor toekomstige functies die de wijnkelder app nog beter kunnen maken:</p>
+                
+                <div class="extension-card">
+                    <h3>💰 Wijnprijs Tracking</h3>
+                    <p>Voeg kostprijs per fles toe en bereken de totale voorraadwaarde. Krijg inzicht in je investering.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>📅 Drinkingwindow Calculator</h3>
+                    <p>Automatische berekening van optimale drinkperiode: "Deze wijn is gereed om te drinken: 2025-2030"</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>⏰ Automatische Proef-reminders</h3>
+                    <p>Ontvang meldingen wanneer het tijd is om bepaalde wijnen te proeven of te drinken.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>🍽️ Wijn &amp; Voedsel Matching</h3>
+                    <p>"Aanbevolen met..." - match wijnen met gerechten en evenementen voor perfecte combinaties.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>🏢 Producent/Wijnhuis Database</h3>
+                    <p>Koppeling naar externe informatie over wijnhuizen, hun geschiedenis en andere wijnen.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>📸 Foto's van Etiketten</h3>
+                    <p>Voeg foto's van etiketten en flessen toe voor visuele herkenning en herinneringen.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>👃 Voorkeurs-aroma's Tracking</h3>
+                    <p>Ontdek welke aroma's je het meest waardeert en krijg gepersonaliseerde aanbevelingen.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>🗓️ Wijnroute Planning</h3>
+                    <p>Plan welke wijnen je op welke data wilt drinken voor speciale gelegenheden.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>🤝 Delen met Vrienden</h3>
+                    <p>Deel proefnotities en aanbevelingen met andere wijnliefhebbers.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>🏷️ Label Generator</h3>
+                    <p>Print professionele labels voor kasten en planken met wijninfo.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>📱 Mobile App Versie</h3>
+                    <p>Native app voor iOS en Android voor toegang onderweg.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>💾 Backup &amp; Restore</h3>
+                    <p>One-click backup en herstel van je complete wijnkelder database.</p>
+                </div>
+                
+                <div class="extension-card">
+                    <h3>👥 Multi-user Support</h3>
+                    <p>Meerdere gebruikers kunnen tegelijk wijnen toevoegen en beheren.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Tasting Note Detail View -->
         <div id="tastingDetailView" class="view" style="display: none;">
             <header class="app-header">
@@ -480,6 +688,7 @@
                     <div class="card__body">
                         <div id="tastingDetailContent"></div>
                         <div class="wine-actions">
+                            <button class="btn btn--secondary" onclick="app.editTastingNote()">Bewerken</button>
                             <button class="btn btn--outline" onclick="app.deleteTastingNote()">Verwijderen</button>
                         </div>
                     </div>
@@ -489,6 +698,93 @@
     </div>
 
     <div id="toast" class="toast"></div>
+
+    <!-- User Selector Modal -->
+    <div id="userSelectorModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>👤 Welke gebruiker ben jij?</h2>
+            </div>
+            <div class="modal-body">
+                <div id="userSelectorList" class="user-selector-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Form Modal -->
+    <div id="userFormModal" class="modal" style="display: none;">
+        <div class="modal-backdrop" onclick="app.closeUserForm()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="userFormTitle">Nieuwe Gebruiker</h2>
+                <button class="btn-close" onclick="app.closeUserForm()" aria-label="Sluiten">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm" onsubmit="app.saveUser(event)">
+                    <input type="hidden" id="userId">
+                    <div class="form-group">
+                        <label class="form-label">Naam *</label>
+                        <input type="text" id="userName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="userEmail" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Kleur *</label>
+                        <div class="color-picker">
+                            <label class="color-option-label">
+                                <input type="radio" name="userColor" value="#e74c3c" required>
+                                <span class="color-swatch" style="background: #e74c3c;"></span>
+                            </label>
+                            <label class="color-option-label">
+                                <input type="radio" name="userColor" value="#3498db" required>
+                                <span class="color-swatch" style="background: #3498db;"></span>
+                            </label>
+                            <label class="color-option-label">
+                                <input type="radio" name="userColor" value="#2ecc71" required>
+                                <span class="color-swatch" style="background: #2ecc71;"></span>
+                            </label>
+                            <label class="color-option-label">
+                                <input type="radio" name="userColor" value="#f39c12" required>
+                                <span class="color-swatch" style="background: #f39c12;"></span>
+                            </label>
+                            <label class="color-option-label">
+                                <input type="radio" name="userColor" value="#9b59b6" required>
+                                <span class="color-swatch" style="background: #9b59b6;"></span>
+                            </label>
+                            <label class="color-option-label">
+                                <input type="radio" name="userColor" value="#1abc9c" required>
+                                <span class="color-swatch" style="background: #1abc9c;"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn--secondary" onclick="app.closeUserForm()">Annuleren</button>
+                        <button type="submit" class="btn btn--primary">Opslaan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Mode Modal -->
+    <div id="offlineModeModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚠️ Geen verbinding met database</h2>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: var(--space-20);">Kan geen verbinding maken met de database. Wil je doorgaan met voorbeeldgegevens?</p>
+                <div class="modal-actions">
+                    <button class="btn btn--secondary" onclick="app.retryConnection()">🔄 Probeer opnieuw</button>
+                    <button class="btn btn--primary" onclick="app.loadDummyData()">📋 Laad voorbeeldgegevens</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- API Configuration Modal -->
     <div id="apiConfigModal" class="modal" style="display: none;">
@@ -523,7 +819,8 @@
                 
                 <div style="margin-top: var(--space-16); padding: var(--space-16); background: var(--color-secondary); border-radius: var(--radius-base); font-size: var(--font-size-sm);">
                     <strong>Setup instructies:</strong><br>
-                    1. Maak een db.json bestand met: <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px;">{"wines": [], "tastingNotes": []}</code><br>
+                    1. Maak een db.json bestand met:<br>
+                    <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px; display: block; margin: 8px 0; white-space: pre; overflow-x: auto;">{"wines": [], "tastingNotes": [], "locations": [{"id": 1, "name": "Kelder"}, {"id": 2, "name": "Klimaatkast"}]}</code>
                     2. Start JSON Server: <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px;">json-server --watch db.json --port 3001</code>
                 </div>
             </div>
