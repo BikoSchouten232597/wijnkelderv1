@@ -895,8 +895,9 @@
                 <div style="margin-top: var(--space-16); padding: var(--space-16); background: var(--color-secondary); border-radius: var(--radius-base); font-size: var(--font-size-sm);">
                     <strong>Setup instructies:</strong><br>
                     1. Maak een db.json bestand met:<br>
-                    <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px; display: block; margin: 8px 0; white-space: pre; overflow-x: auto;">{"wines": [], "tastingNotes": [], "locations": [{"id": 1, "name": "Kelder"}, {"id": 2, "name": "Klimaatkast"}]}</code>
-                    2. Start JSON Server: <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px;">json-server --watch db.json --port 3001</code>
+                    <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px; display: block; margin: 8px 0; white-space: pre; overflow-x: auto;">{"wines": [], "tastingNotes": [], "locations": [{"id": 1, "name": "Kelder"}, {"id": 2, "name": "Klimaatkast"}], "users": [], "activities": [], "comments": []}</code>
+                    2. Start JSON Server: <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px;">json-server --watch db.json --port 3001</code><br>
+                    <strong style="color: var(--color-primary); margin-top: 8px; display: block;">Let op:</strong> Zorg dat "activities" en "comments" tabellen bestaan voor persistente activity feed!
                 </div>
             </div>
         </div>

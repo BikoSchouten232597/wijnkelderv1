@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com/',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -446,6 +446,11 @@ function deepCopy(obj) {
 // ============================================================================
 function generateDummyData() {
   // Note: Passwords will be added by loadDummyData function
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  
   return {
     locations: [
       { id: 1, name: "Kelder", temperature: 12, user_id: 1 },
@@ -476,6 +481,18 @@ function generateDummyData() {
       { id: 2002, wine_id: 1002, user_id: 1, datum: "2024-09-20", wijntype: "Wit", kleur: "Stro geel", intensiteit: "Medium", geurintensiteit: "Medium", geur_primair: ["Citrus", "Steenfruit"], geur_secundair: [], geur_tertiair: [], droog: "0", tannines: "0", zuur: "3", alcohol: "2", body: "Medium", afdronk: "Medium", automatic_stars: 2, manual_stars: 0, manual_star_reasons: [], notities: "Frisse Chablis met mooie mineraliteit" },
       { id: 2003, wine_id: 1005, user_id: 2, datum: "2024-11-01", wijntype: "Rood", kleur: "Granaat rood", intensiteit: "Hoog", geurintensiteit: "Hoog", geur_primair: ["Rood fruit", "Donker fruit", "Bloemen"], geur_secundair: ["Houtrijping"], geur_tertiair: ["Evolutie (chocolade, paddestoel, etc.)"], droog: "0", tannines: "3", zuur: "3", alcohol: "3", body: "Hoog", afdronk: "Hoog", automatic_stars: 4, manual_stars: 2, manual_star_reasons: ["Uitzonderlijke complexiteit"], notities: "Prachtige Barolo, lang bewaren" },
       { id: 2004, wine_id: 1008, user_id: 1, datum: "2024-10-28", wijntype: "Rood", kleur: "Granaat rood", intensiteit: "Hoog", geurintensiteit: "Hoog", geur_primair: ["Donker fruit"], geur_secundair: ["Houtrijping"], geur_tertiair: ["Evolutie (chocolade, paddestoel, etc.)"], droog: "1", tannines: "3", zuur: "2", alcohol: "3", body: "Hoog", afdronk: "Hoog", automatic_stars: 4, manual_stars: 4, manual_star_reasons: ["Perfecte balans", "Unieke complexiteit"], notities: "Geweldige Amarone, zeer krachtig" }
+    ],
+    activities: [
+      { id: 5001, user_id: 1, action_type: "wine_added", wine_id: 1001, wine_name: "Reserva", description: "Demo Gebruiker voegde \"Reserva\" toe", timestamp: threeDaysAgo.toISOString(), likes: 2, liked_by: [1, 2] },
+      { id: 5002, user_id: 2, action_type: "wine_added", wine_id: 1005, wine_name: "Barolo", description: "Partner voegde \"Barolo\" toe", timestamp: twoDaysAgo.toISOString(), likes: 1, liked_by: [1] },
+      { id: 5003, user_id: 1, action_type: "tasting_note_added", wine_id: 1002, wine_name: "Chablis", description: "Demo Gebruiker proefde \"Chablis\" - ⭐", timestamp: yesterday.toISOString(), likes: 0, liked_by: [] },
+      { id: 5004, user_id: 2, action_type: "tasting_note_added", wine_id: 1005, wine_name: "Barolo", description: "Partner proefde \"Barolo\" - ⭐⭐⭐", timestamp: yesterday.toISOString(), likes: 3, liked_by: [1, 2] },
+      { id: 5005, user_id: 1, action_type: "location_added", wine_id: null, wine_name: "Klimaatkast", description: "Demo Gebruiker voegde locatie \"Klimaatkast\" toe", timestamp: now.toISOString(), likes: 0, liked_by: [] }
+    ],
+    comments: [
+      { id: 6001, activity_id: 5001, user_id: 2, text: "Mooie wijn! Ik heb deze ook in mijn kelder.", timestamp: twoDaysAgo.toISOString() },
+      { id: 6002, activity_id: 5002, user_id: 1, text: "Geweldige keuze! Barolo is altijd goed.", timestamp: twoDaysAgo.toISOString() },
+      { id: 6003, activity_id: 5004, user_id: 1, text: "Dat klinkt fantastisch! Ik moet deze ook proberen.", timestamp: yesterday.toISOString() }
     ]
   };
 }
@@ -624,6 +641,12 @@ const app = {
         id: typeof c.id === 'string' ? parseInt(c.id, 10) : c.id
       }));
       
+      console.log(`[loadDataFromAPI] ✓ Loaded ${appState.activities.length} activities from database`);
+      if (appState.activities.length > 0) {
+        console.log(`[loadDataFromAPI] Latest activity:`, appState.activities[0]);
+      }
+      console.log(`[loadDataFromAPI] ✓ Loaded ${appState.comments.length} comments from database`);
+      
       // Ensure default admin user exists with password
       if (appState.users.length === 0) {
         const defaultPasswordHash = await hashPassword('demo123');
@@ -655,7 +678,7 @@ const app = {
       appState.isLoggedIn = false;
       appState.currentUserId = null;
       
-      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, ${appState.users.length} users, ${appState.activities.length} activities, and ${appState.comments.length} comments`);
+      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, ${appState.users.length} users`);
       console.log(`[loadDataFromAPI] Wine IDs:`, appState.wines.map(w => w.id));
       console.log(`[loadDataFromAPI] Default password for all users: demo123`);
       
@@ -713,6 +736,9 @@ const app = {
     appState.users = dummyData.users;
     appState.activities = dummyData.activities || [];
     appState.comments = dummyData.comments || [];
+    
+    console.log(`[loadDummyData] Loaded ${appState.activities.length} example activities`);
+    console.log(`[loadDummyData] Loaded ${appState.comments.length} example comments`);
     appState.isOfflineMode = true;
     appState.isLoggedIn = false;
     appState.currentUserId = null;
@@ -1010,13 +1036,13 @@ const app = {
   },
 
   getNextActivityId: function() {
-    if (appState.activities.length === 0) return 3000;
+    if (appState.activities.length === 0) return 5000;
     const maxId = Math.max(...appState.activities.map(a => a.id));
     return maxId + 1;
   },
 
   getNextCommentId: function() {
-    if (appState.comments.length === 0) return 4000;
+    if (appState.comments.length === 0) return 6000;
     const maxId = Math.max(...appState.comments.map(c => c.id));
     return maxId + 1;
   },
@@ -1036,12 +1062,19 @@ const app = {
     };
     
     try {
+      console.log(`[logActivity] Creating activity: ${actionType} (ID: ${activityId})`);
       const newActivity = await api.post('/activities', activity);
       appState.activities.unshift(newActivity);
-      console.log(`[logActivity] Activity logged: ${actionType}`);
+      console.log(`[logActivity] ✓ Activity saved to database: ${actionType}`);
     } catch (error) {
-      console.warn(`[logActivity] Failed to log activity:`, error);
+      console.error(`[logActivity] ✗ Failed to save activity to database:`, error);
+      console.warn(`[logActivity] Activity will NOT persist after refresh!`);
+      // Still add to local state for current session
       appState.activities.unshift(activity);
+      // Show warning to user if not in offline mode
+      if (!appState.isOfflineMode) {
+        this.showToast('Waarschuwing: Activiteit niet opgeslagen in database', 'error');
+      }
     }
   },
 
@@ -1675,9 +1708,8 @@ const app = {
       
       wine.aantal_flessen = updatedWine.aantal_flessen;
       
-      if (wine.aantal_flessen === 0) {
-        this.logActivity('wine_consumed', wine.id, wine.naam);
-      }
+      // Always log when a bottle is consumed
+      this.logActivity('wine_consumed', wine.id, wine.naam);
       
       const statusMsg = wine.aantal_flessen === 0 
         ? 'Fles gedronken, aantal bijgewerkt' 
@@ -4031,6 +4063,13 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('Default password for all users: demo123');
   console.log('Users can change their own password in Settings');
   console.log('Admin can change all user passwords');
+  console.log('='.repeat(60));
+  console.log('📰 ACTIVITY FEED PERSISTENCE:');
+  console.log('Activities are saved to /activities endpoint');
+  console.log('Comments are saved to /comments endpoint');
+  console.log('Ensure your db.json includes: "activities": [], "comments": []');
+  console.log('Activity IDs start at 5000, Comment IDs start at 6000');
+  console.log('Watch console for "✓ Activity saved to database" messages');
   console.log('='.repeat(60));
   
   app.init();
