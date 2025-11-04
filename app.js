@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -283,25 +283,57 @@ function deepCopy(obj) {
 // ID GENERATION
 // ============================================================================
 /**
- * Generate a numeric ID for new wines and tasting notes
- * Uses timestamp + random number to ensure uniqueness
- * @returns {number} A numeric ID
+ * Generate next wine ID based on highest existing ID + 1
+ * @param {Array} wines - Array of wine objects
+ * @returns {number} Next wine ID
  */
-function generateNumericId() {
-  // Timestamp-based: current time in seconds + random number (0-999)
-  const id = Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
-  
-  if (API_CONFIG.debug) {
-    console.log(`[generateNumericId] Generated ID: ${id} (type: ${typeof id})`);
+function getNextWineId(wines) {
+  if (!wines || wines.length === 0) {
+    const startId = 1000;
+    console.log('[getNextWineId] No wines exist, starting at:', startId);
+    return startId;  // Start at 1000 if no wines exist
   }
   
-  // Validate that it's a number
-  if (typeof id !== 'number' || isNaN(id) || id <= 0) {
-    console.error(`[generateNumericId] Invalid ID generated: ${id}`);
-    throw new Error('Failed to generate valid numeric ID');
+  // Convert all IDs to numbers and find max
+  const ids = wines.map(wine => {
+    const id = parseInt(wine.id);
+    return isNaN(id) ? 0 : id;
+  });
+  
+  const maxId = Math.max(...ids);
+  const nextId = maxId + 1;
+  
+  console.log(`[getNextWineId] Generated new wine ID: ${nextId} (next after max: ${maxId})`);
+  console.log(`[getNextWineId] Existing wine IDs:`, ids);
+  
+  return nextId;
+}
+
+/**
+ * Generate next tasting note ID based on highest existing ID + 1
+ * @param {Array} tastingNotes - Array of tasting note objects
+ * @returns {number} Next tasting note ID
+ */
+function getNextTastingNoteId(tastingNotes) {
+  if (!tastingNotes || tastingNotes.length === 0) {
+    const startId = 2000;
+    console.log('[getNextTastingNoteId] No tasting notes exist, starting at:', startId);
+    return startId;  // Start at 2000 if no notes exist
   }
   
-  return id;
+  // Convert all IDs to numbers and find max
+  const ids = tastingNotes.map(note => {
+    const id = parseInt(note.id);
+    return isNaN(id) ? 0 : id;
+  });
+  
+  const maxId = Math.max(...ids);
+  const nextId = maxId + 1;
+  
+  console.log(`[getNextTastingNoteId] Generated new tasting note ID: ${nextId} (next after max: ${maxId})`);
+  console.log(`[getNextTastingNoteId] Existing tasting note IDs:`, ids);
+  
+  return nextId;
 }
 
 // ============================================================================
@@ -695,8 +727,8 @@ const app = {
         console.log(`[saveWine] Updated wine ID ${updatedWine.id} (type: ${typeof updatedWine.id})`);
         this.showToast('Wijn bijgewerkt', 'success');
       } else {
-        // Creating new wine - generate numeric ID
-        const numericId = generateNumericId();
+        // Creating new wine - generate ID based on max existing ID + 1
+        const numericId = getNextWineId(appState.wines);
         
         const wineData = {
           id: numericId,
@@ -1143,8 +1175,8 @@ const app = {
         console.log(`[saveTastingNote] Updated tasting note ID ${updatedTasting.id} (type: ${typeof updatedTasting.id})`);
         this.showToast('Proefnotitie bijgewerkt', 'success');
       } else {
-        // Creating new tasting note - generate numeric ID
-        const numericId = generateNumericId();
+        // Creating new tasting note - generate ID based on max existing ID + 1
+        const numericId = getNextTastingNoteId(appState.tastingNotes);
         
         const tastingData = {
           id: numericId,
