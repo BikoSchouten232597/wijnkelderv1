@@ -2944,6 +2944,47 @@ textarea.form-control {
   margin-left: var(--space-8);
 }
 
+/* Login Form Styles */
+#loginModal .modal-content {
+  max-width: 400px;
+}
+
+#loginForm .form-group {
+  margin-bottom: var(--space-16);
+}
+
+#loginError {
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+/* Change Password Form */
+#changePasswordForm .form-group {
+  margin-bottom: var(--space-16);
+}
+
+/* Tasting Notes Expandable */
+details summary {
+  list-style: none;
+  padding: var(--space-8);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--duration-fast) var(--ease-standard);
+  border-radius: var(--radius-sm);
+}
+
+details summary:hover {
+  background: var(--color-secondary-hover);
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] summary {
+  margin-bottom: var(--space-12);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .view {

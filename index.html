@@ -38,7 +38,7 @@
             <header class="app-header">
                 <h1>🍷 Mijn Wijnkelder</h1>
                 <div style="display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap;">
-                    <div id="currentUserBadge" class="current-user-badge" onclick="app.showUserSelector()" title="Klik om gebruiker te wisselen">
+                    <div id="currentUserBadge" class="current-user-badge" onclick="app.logout()" title="Klik om uit te loggen">
                         <span>👤 <span id="currentUserName">Laden...</span></span>
                     </div>
                     <div id="connectionStatus" class="connection-status" onclick="app.showApiConfig()" title="Klik om API instellingen te openen">
@@ -607,6 +607,32 @@
                 </div>
                 
                 <div class="settings-section">
+                    <h3>Wachtwoord wijzigen</h3>
+                    <p>Wijzig je persoonlijke wachtwoord</p>
+                    <form id="changePasswordForm" onsubmit="app.changeOwnPassword(event)" style="margin-top: var(--space-16);">
+                        <div class="form-group">
+                            <label class="form-label">Huidig wachtwoord</label>
+                            <input type="password" id="currentPassword" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nieuw wachtwoord (min. 6 karakters)</label>
+                            <input type="password" id="newPassword" class="form-control" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bevestig nieuw wachtwoord</label>
+                            <input type="password" id="confirmPassword" class="form-control" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn--primary">Wijzig wachtwoord</button>
+                    </form>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Sessie</h3>
+                    <p>Log uit en wissel van gebruiker</p>
+                    <button class="btn btn--outline" onclick="app.logout()" style="margin-top: var(--space-16);">🚪 Uitloggen</button>
+                </div>
+                
+                <div class="settings-section">
                     <h3>Over</h3>
                     <p><strong>Wijnkelder Beheer v2.0</strong></p>
                     <p>Een complete oplossing voor het beheren van je wijnverzameling</p>
@@ -730,15 +756,28 @@
 
     <div id="toast" class="toast"></div>
 
-    <!-- User Selector Modal -->
-    <div id="userSelectorModal" class="modal" style="display: none;">
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal" style="display: none;">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <h2>👤 Welke gebruiker ben jij?</h2>
+                <h2>🔐 Inloggen</h2>
             </div>
             <div class="modal-body">
-                <div id="userSelectorList" class="user-selector-list"></div>
+                <form id="loginForm" onsubmit="app.handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label">Gebruiker</label>
+                        <select id="loginUsername" class="form-control" required>
+                            <option value="">Selecteer gebruiker</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Wachtwoord</label>
+                        <input type="password" id="loginPassword" class="form-control" required placeholder="Voer wachtwoord in">
+                    </div>
+                    <div id="loginError" style="display: none; padding: var(--space-12); background: rgba(var(--color-error-rgb), 0.1); color: var(--color-error); border-radius: var(--radius-base); margin-bottom: var(--space-16);"></div>
+                    <button type="submit" class="btn btn--primary btn--full-width">Inloggen</button>
+                </form>
             </div>
         </div>
     </div>
@@ -761,6 +800,11 @@
                     <div class="form-group">
                         <label class="form-label">Email</label>
                         <input type="email" id="userEmail" class="form-control">
+                    </div>
+                    <div class="form-group" id="userPasswordGroup" style="display: none;">
+                        <label class="form-label">Wachtwoord (min. 6 karakters)</label>
+                        <input type="password" id="userPassword" class="form-control" minlength="6">
+                        <p class="form-helper" style="margin-top: var(--space-8); font-size: var(--font-size-sm); color: var(--color-text-secondary);">Alleen invullen voor nieuwe gebruikers of om wachtwoord te wijzigen</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Kleur *</label>

@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -348,6 +348,23 @@ const api = {
 };
 
 // ============================================================================
+// PASSWORD HASHING (SHA-256)
+// ============================================================================
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + 'wijnkelder_salt_2024');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+async function verifyPassword(inputPassword, storedHash) {
+  const inputHash = await hashPassword(inputPassword);
+  return inputHash === storedHash;
+}
+
+// ============================================================================
 // GLOBAL STATE MANAGEMENT
 // ============================================================================
 const appState = {
@@ -358,6 +375,7 @@ const appState = {
   activities: [],
   comments: [],
   currentUserId: null,
+  isLoggedIn: false,
   isLoading: false,
   isConnected: false,
   isOfflineMode: false,
@@ -427,16 +445,17 @@ function deepCopy(obj) {
 // DUMMY DATA GENERATION (for offline mode)
 // ============================================================================
 function generateDummyData() {
+  // Note: Passwords will be added by loadDummyData function
   return {
     locations: [
-      { id: 1, name: "Kelder", temperature: 12 },
-      { id: 2, name: "Klimaatkast", temperature: 18 },
-      { id: 3, name: "Wijnkast", temperature: 16 },
-      { id: 4, name: "Garage", temperature: 14 }
+      { id: 1, name: "Kelder", temperature: 12, user_id: 1 },
+      { id: 2, name: "Klimaatkast", temperature: 18, user_id: 1 },
+      { id: 3, name: "Wijnkast", temperature: 16, user_id: 2 },
+      { id: 4, name: "Garage", temperature: 14, user_id: 2 }
     ],
     users: [
-      { id: 1, name: "Demo Gebruiker", email: "demo@example.com", color: "#e74c3c" },
-      { id: 2, name: "Partner", email: "partner@example.com", color: "#3498db" }
+      { id: 1, name: "Demo Gebruiker", email: "demo@example.com", color: "#e74c3c", role: "admin" },
+      { id: 2, name: "Partner", email: "partner@example.com", color: "#3498db", role: "user" }
     ],
     wines: [
       { id: 1001, user_id: 1, naam: "Reserva", wijnhuis: "Marqués de Riscal", vintage: 2018, streek: "Rioja", druif: "Tempranillo", kleur: "Rood", locatie: "Kelder", aantal_flessen: 3, price_per_bottle: 25.50 },
@@ -554,10 +573,10 @@ const app = {
     console.log('Initializing Wine Cellar App...');
     await this.loadDataFromAPI();
     
-    // Show user selector on first load if multiple users or no user selected
+    // Show login form on startup
     setTimeout(() => {
-      if (!appState.currentUserId || appState.users.length > 1) {
-        this.showUserSelector();
+      if (!appState.isLoggedIn) {
+        this.showLoginForm();
       }
     }, 500);
   },
@@ -605,9 +624,10 @@ const app = {
         id: typeof c.id === 'string' ? parseInt(c.id, 10) : c.id
       }));
       
-      // Ensure default admin user exists
+      // Ensure default admin user exists with password
       if (appState.users.length === 0) {
-        const defaultUser = { id: 1, name: "Hoofd", email: "admin@email.nl", color: "#e74c3c", role: "admin" };
+        const defaultPasswordHash = await hashPassword('demo123');
+        const defaultUser = { id: 1, name: "Hoofd", email: "admin@email.nl", color: "#e74c3c", role: "admin", password: defaultPasswordHash };
         try {
           const newUser = await api.post('/users', defaultUser);
           appState.users.push(newUser);
@@ -617,19 +637,32 @@ const app = {
         }
       }
       
-      // Select user (use saved or first user)
-      if (!appState.currentUserId) {
-        appState.currentUserId = appState.users[0].id;
+      // Ensure all users have passwords (for existing databases)
+      for (let user of appState.users) {
+        if (!user.password) {
+          const defaultPasswordHash = await hashPassword('demo123');
+          user.password = defaultPasswordHash;
+          try {
+            await api.put(`/users/${user.id}`, user);
+            console.log(`[loadDataFromAPI] Added default password to user: ${user.name}`);
+          } catch (err) {
+            console.warn(`Failed to update user ${user.id} with password:`, err);
+          }
+        }
       }
-      this.updateCurrentUserDisplay();
+      
+      // Don't auto-select user - require login
+      appState.isLoggedIn = false;
+      appState.currentUserId = null;
       
       console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, ${appState.users.length} users, ${appState.activities.length} activities, and ${appState.comments.length} comments`);
       console.log(`[loadDataFromAPI] Wine IDs:`, appState.wines.map(w => w.id));
+      console.log(`[loadDataFromAPI] Default password for all users: demo123`);
       
       updateConnectionStatus(true);
       appState.isOfflineMode = false;
-      this.showCollection();
-      this.showToast('Data succesvol geladen', 'success');
+      // Don't auto-show collection - wait for login
+      this.showToast('Data geladen - Log in om te beginnen', 'success');
       
     } catch (error) {
       console.error('[loadDataFromAPI] Failed to load data:', error);
@@ -659,30 +692,39 @@ const app = {
     this.loadDataFromAPI();
   },
 
-  loadDummyData: function() {
+  loadDummyData: async function() {
     const modal = document.getElementById('offlineModeModal');
     if (modal) {
       modal.style.display = 'none';
     }
     
     const dummyData = generateDummyData();
+    
+    // Add passwords to users
+    const defaultPasswordHash = await hashPassword('demo123');
+    dummyData.users = dummyData.users.map(u => ({
+      ...u,
+      password: defaultPasswordHash
+    }));
+    
     appState.wines = dummyData.wines;
     appState.tastingNotes = dummyData.tastingNotes;
     appState.locations = dummyData.locations;
     appState.users = dummyData.users;
     appState.activities = dummyData.activities || [];
     appState.comments = dummyData.comments || [];
-    appState.currentUserId = dummyData.users[0].id;
     appState.isOfflineMode = true;
+    appState.isLoggedIn = false;
+    appState.currentUserId = null;
     
-    this.updateCurrentUserDisplay();
     updateConnectionStatus(false);
     
     // Show offline indicator
     this.showOfflineIndicator();
     
-    this.showCollection();
-    this.showToast('Voorbeeldgegevens geladen', 'success');
+    // Show login form
+    this.showLoginForm();
+    this.showToast('Voorbeeldgegevens geladen - Login met wachtwoord: demo123', 'success');
   },
 
   showOfflineIndicator: function() {
@@ -710,62 +752,145 @@ const app = {
     if (currentUser && userNameEl && userBadgeEl) {
       userNameEl.textContent = currentUser.name;
       userBadgeEl.style.borderColor = currentUser.color;
+      userBadgeEl.title = 'Klik om uit te loggen';
     }
   },
 
-  showUserSelector: function() {
-    const modal = document.getElementById('userSelectorModal');
+  showLoginForm: function() {
+    const modal = document.getElementById('loginModal');
     if (!modal) return;
     
-    if (appState.users.length === 0) {
-      console.warn('[showUserSelector] No users available');
-      return;
+    // Populate user dropdown
+    const select = document.getElementById('loginUsername');
+    if (select && appState.users.length > 0) {
+      select.innerHTML = '<option value="">Selecteer gebruiker</option>' +
+        appState.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
     }
     
-    const listEl = document.getElementById('userSelectorList');
-    if (!listEl) return;
-    
-    listEl.innerHTML = appState.users.map(user => {
-      const isActive = user.id === appState.currentUserId;
-      const wineCount = appState.wines.filter(w => w.user_id === user.id).length;
-      return `
-        <div class="user-selector-item ${isActive ? 'active' : ''}" onclick="app.selectUser(${user.id})">
-          <div class="user-color-dot" style="background: ${user.color};"></div>
-          <div class="user-selector-info">
-            <strong>${user.name}</strong>
-            ${user.email ? `<small>${user.email}</small>` : ''}
-            <small style="display: block; margin-top: 4px; color: var(--color-text-secondary);">${wineCount} wijn${wineCount !== 1 ? 'en' : ''}</small>
-          </div>
-          ${isActive ? '<span>✓</span>' : ''}
-        </div>
-      `;
-    }).join('');
+    // Clear form
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginError').style.display = 'none';
     
     modal.style.display = 'flex';
   },
 
-  selectUser: function(userId) {
-    const previousUserId = appState.currentUserId;
-    appState.currentUserId = userId;
-    this.updateCurrentUserDisplay();
+  handleLogin: async function(event) {
+    event.preventDefault();
     
-    const modal = document.getElementById('userSelectorModal');
-    if (modal) {
-      modal.style.display = 'none';
+    const userId = parseInt(document.getElementById('loginUsername').value);
+    const password = document.getElementById('loginPassword').value;
+    const errorDiv = document.getElementById('loginError');
+    
+    if (!userId) {
+      errorDiv.textContent = 'Selecteer een gebruiker';
+      errorDiv.style.display = 'block';
+      return;
     }
-    
-    // If user filter is enabled and user changed, refresh view
-    if (appState.showOnlyMyWines && previousUserId !== userId) {
-      console.log(`[selectUser] User changed from ${previousUserId} to ${userId}, refreshing filtered view`);
-    }
-    
-    this.showCollection();
     
     const user = appState.users.find(u => u.id === userId);
-    if (user) {
-      this.showToast(`Ingelogd als ${user.name}`, 'success');
+    if (!user) {
+      errorDiv.textContent = 'Gebruiker niet gevonden';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    
+    // Verify password
+    const isValid = await verifyPassword(password, user.password);
+    
+    if (!isValid) {
+      errorDiv.textContent = 'Wachtwoord onjuist';
+      errorDiv.style.display = 'block';
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('loginPassword').focus();
+      return;
+    }
+    
+    // Login successful
+    appState.currentUserId = userId;
+    appState.isLoggedIn = true;
+    this.updateCurrentUserDisplay();
+    
+    const modal = document.getElementById('loginModal');
+    if (modal) modal.style.display = 'none';
+    
+    this.showCollection();
+    this.showToast(`Welkom, ${user.name}!`, 'success');
+  },
+
+  logout: function() {
+    if (confirm('Weet je zeker dat je wilt uitloggen?')) {
+      appState.currentUserId = null;
+      appState.isLoggedIn = false;
+      this.showLoginForm();
+      this.showToast('Uitgelogd', 'success');
     }
   },
+
+  changeOwnPassword: async function(event) {
+    event.preventDefault();
+    
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    // Validate
+    if (newPassword !== confirmPassword) {
+      this.showToast('Wachtwoorden komen niet overeen', 'error');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      this.showToast('Wachtwoord moet minstens 6 karakters zijn', 'error');
+      return;
+    }
+    
+    const currentUser = appState.users.find(u => u.id === appState.currentUserId);
+    if (!currentUser) {
+      this.showToast('Gebruiker niet gevonden', 'error');
+      return;
+    }
+    
+    // Check current password
+    const isValid = await verifyPassword(currentPassword, currentUser.password);
+    if (!isValid) {
+      this.showToast('Huidig wachtwoord onjuist', 'error');
+      document.getElementById('currentPassword').value = '';
+      document.getElementById('currentPassword').focus();
+      return;
+    }
+    
+    // Change password
+    const newPasswordHash = await hashPassword(newPassword);
+    currentUser.password = newPasswordHash;
+    
+    try {
+      await api.put(`/users/${currentUser.id}`, currentUser);
+      
+      // Update local state
+      const index = appState.users.findIndex(u => u.id === currentUser.id);
+      if (index !== -1) {
+        appState.users[index] = currentUser;
+      }
+      
+      this.showToast('Wachtwoord gewijzigd! Log opnieuw in.', 'success');
+      
+      // Clear form
+      document.getElementById('changePasswordForm').reset();
+      
+      // Logout and show login form
+      setTimeout(() => {
+        appState.currentUserId = null;
+        appState.isLoggedIn = false;
+        this.showLoginForm();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      this.showToast(error.message, 'error');
+    }
+  },
+
+
 
   getNextUserId: function() {
     if (appState.users.length === 0) return 1;
@@ -940,6 +1065,12 @@ const app = {
   // VIEW MANAGEMENT
   // ============================================================================
   showCollection: function() {
+    // Check if user is logged in
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
+    
     appState.currentView = 'collection';
     appState.currentWineId = null;
     appState.currentTastingId = null;
@@ -2424,6 +2555,10 @@ const app = {
   // LOCATIONS MANAGEMENT
   // ============================================================================
   showLocations: function() {
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
     appState.currentView = 'locations';
     this.hideAllViews();
     this.updateNavigation('locations');
@@ -2642,6 +2777,10 @@ const app = {
   // ACTIVITY FEED
   // ============================================================================
   showActivities: function() {
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
     appState.currentView = 'activities';
     this.hideAllViews();
     this.updateNavigation('activities');
@@ -2813,6 +2952,10 @@ const app = {
   // STATISTICS
   // ============================================================================
   showStatistics: function() {
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
     appState.currentView = 'statistics';
     this.hideAllViews();
     this.updateNavigation('statistics');
@@ -2964,6 +3107,10 @@ const app = {
   // VALUE DASHBOARD
   // ============================================================================
   showValueDashboard: function() {
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
     appState.currentView = 'value';
     this.hideAllViews();
     this.updateNavigation('value');
@@ -3194,6 +3341,10 @@ const app = {
   // USER MANAGEMENT & DIRECTORY
   // ============================================================================
   showUsers: function() {
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
     appState.currentView = 'users';
     this.hideAllViews();
     this.updateNavigation('users');
@@ -3277,40 +3428,91 @@ const app = {
       `;
     }
     
-    // Show wines
+    // Show wines WITH TASTING NOTES
     if (userWines.length > 0) {
       html += `
         <div class="card">
           <div class="card__body">
-            <h3>🍷 Wijnen <span class="readonly-badge">🔒 Alleen-lezen</span></h3>
-            <div class="wine-grid" style="margin-top: var(--space-16);">
+            <h3>🍷 Wijnen &amp; Proefnotities <span class="readonly-badge">🔒 Alleen-lezen</span></h3>
+            <div style="margin-top: var(--space-16); display: flex; flex-direction: column; gap: var(--space-24);">
               ${userWines.map(wine => {
                 const tastings = userTastings.filter(t => t.wine_id === wine.id);
                 const isOutOfStock = wine.aantal_flessen === 0;
                 const price = wine.price_per_bottle || 0;
                 const totalWineValue = price * (wine.aantal_flessen || 0);
+                const wineExpandId = `wine-expand-${wine.id}`;
                 
                 return `
-                  <div class="wine-card ${isOutOfStock ? 'wine-card--out-of-stock' : ''}" style="cursor: default;">
-                    ${wine.photo_base64 ? `
-                      <img src="${wine.photo_base64}" class="wine-photo-thumbnail" alt="${wine.naam}" style="width: 100%; height: 150px; object-fit: cover; margin-bottom: var(--space-12); border-radius: var(--radius-base);">
-                    ` : ''}
-                    <div class="wine-card-header">
-                      <h3>${wine.naam}</h3>
-                      ${isOutOfStock ? '<span class="stock-icon out-of-stock">📧</span>' : '<span class="stock-icon in-stock">🍷</span>'}
+                  <div style="border: 1px solid var(--color-card-border); border-radius: var(--radius-lg); padding: var(--space-16); background: var(--color-surface);">
+                    <div style="display: flex; gap: var(--space-16); flex-wrap: wrap;">
+                      ${wine.photo_base64 ? `
+                        <img src="${wine.photo_base64}" alt="${wine.naam}" style="width: 100px; height: 100px; object-fit: cover; border-radius: var(--radius-base); border: 1px solid var(--color-border);">
+                      ` : ''}
+                      <div style="flex: 1; min-width: 250px;">
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-8);">
+                          <h4 style="margin: 0 0 var(--space-8) 0; font-size: var(--font-size-xl);">${wine.naam}</h4>
+                          ${isOutOfStock ? '<span style="font-size: 24px;">📧</span>' : '<span style="font-size: 24px;">🍷</span>'}
+                        </div>
+                        <p style="margin: var(--space-4) 0;"><strong>${wine.wijnhuis}</strong></p>
+                        <p style="margin: var(--space-4) 0; color: var(--color-text-secondary);">${wine.vintage} • ${wine.streek} • ${wine.druif}</p>
+                        <div style="display: flex; gap: var(--space-8); flex-wrap: wrap; margin-top: var(--space-12);">
+                          ${wine.kleur ? `<span class="kleur-badge kleur-badge--${wine.kleur.toLowerCase()}">${wine.kleur}</span>` : ''}
+                          <span class="location-badge">${wine.locatie}</span>
+                          <span class="stock-badge ${isOutOfStock ? 'stock-badge--out' : 'stock-badge--in'}">
+                            ${wine.aantal_flessen} fles${wine.aantal_flessen !== 1 ? 'sen' : ''}
+                          </span>
+                        </div>
+                        ${price > 0 ? `<p style="color: var(--color-primary); font-weight: var(--font-weight-medium); margin-top: var(--space-8);">€${price.toFixed(2)}/fles • €${totalWineValue.toFixed(2)} totaal</p>` : ''}
+                      </div>
                     </div>
-                    <p><strong>${wine.wijnhuis}</strong></p>
-                    <p>${wine.vintage} • ${wine.streek}</p>
-                    <p>${wine.druif}</p>
-                    ${price > 0 ? `<p style="color: var(--color-primary); font-weight: var(--font-weight-medium); margin-top: var(--space-8);">€${price.toFixed(2)}/fles • €${totalWineValue.toFixed(2)} totaal</p>` : ''}
-                    <div class="wine-card-footer">
-                      ${wine.kleur ? `<span class="kleur-badge kleur-badge--${wine.kleur.toLowerCase()}">${wine.kleur}</span>` : ''}
-                      <span class="location-badge">${wine.locatie}</span>
-                      <span class="stock-badge ${isOutOfStock ? 'stock-badge--out' : 'stock-badge--in'}">
-                        ${wine.aantal_flessen} fles${wine.aantal_flessen !== 1 ? 'sen' : ''}
-                      </span>
-                    </div>
-                    ${tastings.length > 0 ? `<p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-top: var(--space-4);">📝 ${tastings.length} proefnotitie${tastings.length !== 1 ? 's' : ''}</p>` : ''}
+                    
+                    ${tastings.length > 0 ? `
+                      <div style="margin-top: var(--space-16); padding-top: var(--space-16); border-top: 1px solid var(--color-border);">
+                        <button class="btn btn--sm btn--secondary" onclick="app.toggleTastingNotes('${wineExpandId}')" style="width: 100%;">
+                          📝 Proefnotities (${tastings.length}) - Klik om te tonen/verbergen
+                        </button>
+                        <div id="${wineExpandId}" style="display: none; margin-top: var(--space-16);">
+                          ${tastings.sort((a, b) => new Date(b.datum) - new Date(a.datum)).map(tasting => {
+                            const autoStars = tasting.automatic_stars || 0;
+                            const manualStars = tasting.manual_stars || 0;
+                            const totalHalfStars = autoStars + manualStars;
+                            const starsDisplay = this.renderStars(totalHalfStars, true, autoStars);
+                            const date = new Date(tasting.datum).toLocaleDateString('nl-NL', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            });
+                            const creatorName = this.getUserName(tasting.user_id);
+                            const creator = appState.users.find(u => u.id === tasting.user_id);
+                            const creatorColor = creator ? creator.color : '#999';
+                            
+                            return `
+                              <div style="background: var(--color-bg-2); padding: var(--space-16); border-radius: var(--radius-base); margin-bottom: var(--space-12); border: 1px solid var(--color-border);">
+                                <div style="display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-12);">
+                                  <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: ${creatorColor}; border: 2px solid var(--color-border);"></span>
+                                  <strong>${creatorName}</strong>
+                                  <span style="color: var(--color-text-secondary);">•</span>
+                                  <span style="color: var(--color-text-secondary);">📅 ${date}</span>
+                                </div>
+                                <div style="font-size: 1.5em; margin: var(--space-12) 0; line-height: 1.2;">${starsDisplay}</div>
+                                <p style="margin: var(--space-8) 0;"><strong>Totaal:</strong> ${this.formatStarCount(totalHalfStars)}</p>
+                                ${tasting.notities ? `<p style="margin-top: var(--space-12); padding: var(--space-12); background: var(--color-surface); border-radius: var(--radius-sm);">${tasting.notities}</p>` : ''}
+                                <details style="margin-top: var(--space-12);">
+                                  <summary style="cursor: pointer; color: var(--color-primary); font-weight: var(--font-weight-medium);">Bekijk details</summary>
+                                  <div style="margin-top: var(--space-12); padding: var(--space-12); background: var(--color-surface); border-radius: var(--radius-sm);">
+                                    <p style="margin: var(--space-4) 0;"><strong>Type:</strong> ${tasting.wijntype} - ${tasting.kleur}</p>
+                                    <p style="margin: var(--space-4) 0;"><strong>Geurintensiteit:</strong> ${tasting.geurintensiteit}</p>
+                                    ${tasting.geur_primair && tasting.geur_primair.length > 0 ? `<p style="margin: var(--space-4) 0;"><strong>Primaire aroma's:</strong> ${tasting.geur_primair.join(', ')}</p>` : ''}
+                                    <p style="margin: var(--space-4) 0;"><strong>Body:</strong> ${tasting.body}</p>
+                                    <p style="margin: var(--space-4) 0;"><strong>Afdronk:</strong> ${tasting.afdronk}</p>
+                                  </div>
+                                </details>
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
+                    ` : '<p style="margin-top: var(--space-16); color: var(--color-text-secondary); text-align: center;">Nog geen proefnotities voor deze wijn</p>'}
                   </div>
                 `;
               }).join('')}
@@ -3324,6 +3526,13 @@ const app = {
     
     html += '</div>';
     container.innerHTML = html;
+  },
+  
+  toggleTastingNotes: function(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+      element.style.display = element.style.display === 'none' ? 'block' : 'none';
+    }
   },
 
   renderUsers: function() {
@@ -3425,6 +3634,9 @@ const app = {
     const modal = document.getElementById('userFormModal');
     if (!modal) return;
     
+    const passwordGroup = document.getElementById('userPasswordGroup');
+    const passwordInput = document.getElementById('userPassword');
+    
     modal.style.display = 'flex';
     
     if (userId) {
@@ -3438,12 +3650,28 @@ const app = {
       document.getElementById('userName').value = user.name;
       document.getElementById('userEmail').value = user.email || '';
       
+      // Show password field for admin to change password
+      if (passwordGroup) passwordGroup.style.display = 'block';
+      if (passwordInput) {
+        passwordInput.value = '';
+        passwordInput.required = false;
+        passwordInput.placeholder = 'Laat leeg om ongewijzigd te laten';
+      }
+      
       const colorRadio = document.querySelector(`input[name="userColor"][value="${user.color}"]`);
       if (colorRadio) colorRadio.checked = true;
     } else {
       document.getElementById('userFormTitle').textContent = 'Nieuwe Gebruiker';
       document.getElementById('userForm').reset();
       document.getElementById('userId').value = '';
+      
+      // Password required for new users
+      if (passwordGroup) passwordGroup.style.display = 'block';
+      if (passwordInput) {
+        passwordInput.value = '';
+        passwordInput.required = true;
+        passwordInput.placeholder = 'Wachtwoord voor nieuwe gebruiker';
+      }
     }
   },
 
@@ -3464,6 +3692,7 @@ const app = {
     const name = document.getElementById('userName').value.trim();
     const email = document.getElementById('userEmail').value.trim();
     const color = document.querySelector('input[name="userColor"]:checked')?.value;
+    const password = document.getElementById('userPassword').value;
     const userIdInput = document.getElementById('userId').value;
     
     // Validation
@@ -3484,6 +3713,19 @@ const app = {
       return;
     }
     
+    // Password validation
+    if (!userIdInput && !password) {
+      this.showToast('Wachtwoord is verplicht voor nieuwe gebruikers', 'error');
+      document.getElementById('userPassword').focus();
+      return;
+    }
+    
+    if (password && password.length < 6) {
+      this.showToast('Wachtwoord moet minstens 6 karakters zijn', 'error');
+      document.getElementById('userPassword').focus();
+      return;
+    }
+    
     const submitBtn = event.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.classList.add('loading');
@@ -3498,8 +3740,14 @@ const app = {
           name, 
           email, 
           color,
-          role: existingUser ? existingUser.role : 'user'
+          role: existingUser ? existingUser.role : 'user',
+          password: existingUser.password // Keep existing password
         };
+        
+        // Update password if provided
+        if (password) {
+          userData.password = await hashPassword(password);
+        }
         
         console.log(`[saveUser] Updating user ID ${userId}`, userData);
         
@@ -3507,11 +3755,12 @@ const app = {
         const index = appState.users.findIndex(u => u.id === userId);
         if (index !== -1) appState.users[index] = updatedUser;
         
-        this.showToast('Gebruiker bijgewerkt', 'success');
+        this.showToast(password ? 'Gebruiker en wachtwoord bijgewerkt' : 'Gebruiker bijgewerkt', 'success');
       } else {
         // Create new user
         const newId = this.getNextUserId();
-        const userData = { id: newId, name, email, color, role: 'user' };
+        const passwordHash = await hashPassword(password);
+        const userData = { id: newId, name, email, color, role: 'user', password: passwordHash };
         
         console.log(`[saveUser] Creating new user with ID ${newId}`, userData);
         
@@ -3579,6 +3828,10 @@ const app = {
   },
 
   showSettings: function() {
+    if (!appState.isLoggedIn || !appState.currentUserId) {
+      this.showLoginForm();
+      return;
+    }
     appState.currentView = 'settings';
     this.hideAllViews();
     this.updateNavigation('settings');
@@ -3773,6 +4026,11 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log(`Debug Mode: ${API_CONFIG.debug}`);
   console.log('Open deze console om gedetailleerde API logs te zien.');
   console.log('Klik op het verbindingsstatus icoon om API instellingen te openen.');
+  console.log('='.repeat(60));
+  console.log('🔐 AUTHENTICATION: Enabled');
+  console.log('Default password for all users: demo123');
+  console.log('Users can change their own password in Settings');
+  console.log('Admin can change all user passwords');
   console.log('='.repeat(60));
   
   app.init();
