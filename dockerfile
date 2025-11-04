@@ -1,31 +1,17 @@
-# Gebruik een officiële Node.js image als basis
+# Gebruik Node.js alpine image als basis
 FROM node:18-alpine
 
-# Installeer nginx
-RUN apk add --no-cache nginx
+# Maak werkdirectory
+WORKDIR /app
 
-# Maak een directory voor static files
-WORKDIR /usr/src/app
+# Kopieer db.json naar container
+COPY ./db.json /app/db.json
 
-# Kopieer de static web app bestanden naar de container
-COPY index.html /usr/share/nginx/html/
-COPY app.js /usr/share/nginx/html/
-COPY style.css /usr/share/nginx/html/
-
-# Installeer json-server als globale npm package
+# Installeer json-server globaal
 RUN npm install -g json-server
 
-# Kopieer json database naar container
-COPY ./db.json /usr/src/app/db.json
+# Exposeer poort 3000 (standaard voor json-server)
+EXPOSE 3001
 
-# Kopieer nginx config
-COPY ./nginx.conf /etc/nginx/nginx.conf
-
-# Exposeer poorten voor nginx (80) en json-server (3000)
-EXPOSE 80 3001
-
-# Start zowel nginx als json-server (via een shell script)
-COPY ./start.sh /start.sh
-RUN chmod +x /start.sh
-
-CMD ["/start.sh"]
+# Start json-server met db.json
+CMD ["json-server", "--watch", "db.json", "--host", "0.0.0.0", "--port", "3001"]
