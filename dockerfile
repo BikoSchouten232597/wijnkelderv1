@@ -1,19 +1,26 @@
-# Gebruik Node.js alpine image als basis
+# Gebruik een node basis image
 FROM node:18-alpine
 
-# Maak werkdirectory
+# Zet werkdirectory
 WORKDIR /app
 
-# Kopieer db.json naar container
+# Kopieer de statische app bestand(en) naar /app/public (verondersteld dat je statische bestanden in ./static-app staan)
+COPY ./index.html /app/public/index.html 
+COPY ./style.css /app/public/style.css
+COPY ./app.js /app/public/app.js
+
+# Kopieer het db.json bestand nodig voor json-server
 COPY ./db.json /app/db.json
 
-COPY ./cors-middleware.js /app/cors-middleware.js
-
 # Installeer json-server globaal
-RUN npm install -g json-server
+RUN npm install -g json-server http-server
 
-# Exposeer poort 3000 (standaard voor json-server)
-EXPOSE 3001
+# Shell script maken om de statische app en json-server tegelijkertijd te draaien
+RUN echo '#!/bin/sh\n\njson-server --watch /app/db.json --port 3001 &\nhttp-server /app/public -p 80' > /app/start.sh
+RUN chmod +x /app/start.sh
 
-# Start json-server met db.json
-CMD ["json-server", "--watch", "db.json", "--host", "0.0.0.0", "--port", "3001""]
+# Exposeer poorten
+EXPOSE 80 3001
+
+# Start script
+CMD ["/app/start.sh"]
