@@ -14,4 +14,4 @@ RUN npm install -g json-server
 EXPOSE 3001
 
 # Start json-server met db.json
-CMD ["json-server", "--watch", "db.json", "--host", "0.0.0.0", "--port", "3001", "--cors"]
+CMD ["json-server", "--watch", "db.json", "--host", "0.0.0.0", "--port", "3001"]
