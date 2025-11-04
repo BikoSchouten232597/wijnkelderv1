@@ -1,0 +1,37 @@
+{
+  "wines": [
+    {
+      "id": 1000,
+      "naam": "Reserva",
+      "wijnhuis": "Marqués de Riscal",
+      "vintage": 2018,
+      "streek": "Rioja",
+      "druif": "Tempranillo, Graciano",
+      "kleur": "Rood",
+      "locatie": "Kelder",
+      "aantal_flessen": 3
+    }
+  ],
+  "tastingNotes": [
+    {
+      "id": 2000,
+      "wine_id": 1000,
+      "datum": "2025-11-01",
+      "wijntype": "Rood",
+      "kleur": "Granaat rood",
+      "intensiteit": "Hoog",
+      "geur_primair": ["Donker fruit", "Kruiden", "Bloemen"],
+      "geur_secundair": ["Houtrijping"],
+      "geur_tertiair": [],
+      "droog": 0,
+      "tannines": 2,
+      "zuur": 2,
+      "alcohol": 2,
+      "body": "Medium",
+      "afdronk": "Hoog",
+      "automatic_stars": 2,
+      "manual_stars": 1,
+      "manual_star_reasons": ["Perfecte balans"]
+    }
+  ]
+}
