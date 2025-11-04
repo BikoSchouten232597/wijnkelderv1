@@ -2,13 +2,26 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://31.97.34.22:3001',
-  timeout: 10000,
+  baseURL: 'http://localhost:3001',
+  timeout: 5000,
   endpoints: {
     wines: '/wines',
     tastingNotes: '/tastingNotes'
-  }
+  },
+  debug: true // Enable detailed console logging
 };
+
+// Try to load saved API URL from memory (not localStorage due to sandbox)
+if (window.savedApiUrl) {
+  API_CONFIG.baseURL = window.savedApiUrl;
+}
+
+// Check for URL parameter
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('apiUrl')) {
+  API_CONFIG.baseURL = urlParams.get('apiUrl');
+  window.savedApiUrl = API_CONFIG.baseURL;
+}
 
 // ============================================================================
 // API HELPER FUNCTIONS
@@ -35,78 +48,165 @@ const api = {
   },
 
   async get(endpoint) {
+    const url = `${API_CONFIG.baseURL}${endpoint}`;
+    if (API_CONFIG.debug) {
+      console.log(`[API GET] Fetching: ${url}`);
+    }
+    
     try {
-      const response = await this.fetchWithTimeout(`${API_CONFIG.baseURL}${endpoint}`);
+      const response = await this.fetchWithTimeout(url);
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API GET] Response status: ${response.status}`);
+      }
+      
       if (!response.ok) {
-        if (response.status === 404) throw new Error('Niet gevonden');
-        if (response.status >= 500) throw new Error('Serverfout, probeer later opnieuw');
+        if (response.status === 404) {
+          console.error(`[API GET] 404 Not Found: ${url}`);
+          throw new Error(`Niet gevonden op ${url}`);
+        }
+        if (response.status >= 500) {
+          console.error(`[API GET] Server error: ${response.status}`);
+          throw new Error('Serverfout, probeer later opnieuw');
+        }
+        console.error(`[API GET] HTTP error: ${response.status}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      
+      const data = await response.json();
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API GET] Success:`, data);
+      }
+      
+      return data;
     } catch (error) {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        throw new Error('Kan geen verbinding maken met database op localhost:3001. Controleer of JSON Server draait.');
+        console.error(`[API GET] Network error for ${url}:`, error);
+        throw new Error(`Kan geen verbinding maken met ${API_CONFIG.baseURL}. Controleer of JSON Server draait.`);
       }
+      console.error(`[API GET] Error for ${url}:`, error);
       throw error;
     }
   },
 
   async post(endpoint, data) {
+    const url = `${API_CONFIG.baseURL}${endpoint}`;
+    if (API_CONFIG.debug) {
+      console.log(`[API POST] Posting to: ${url}`, data);
+    }
+    
     try {
-      const response = await this.fetchWithTimeout(`${API_CONFIG.baseURL}${endpoint}`, {
+      const response = await this.fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API POST] Response status: ${response.status}`);
+      }
+      
       if (!response.ok) {
         if (response.status >= 500) throw new Error('Serverfout, probeer later opnieuw');
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      
+      const result = await response.json();
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API POST] Success:`, result);
+      }
+      
+      return result;
     } catch (error) {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        console.error(`[API POST] Network error for ${url}:`, error);
         throw new Error('Kan geen verbinding maken met database');
       }
+      console.error(`[API POST] Error for ${url}:`, error);
       throw error;
     }
   },
 
   async put(endpoint, data) {
+    const url = `${API_CONFIG.baseURL}${endpoint}`;
+    if (API_CONFIG.debug) {
+      console.log(`[API PUT] Updating: ${url}`, data);
+    }
+    
     try {
-      const response = await this.fetchWithTimeout(`${API_CONFIG.baseURL}${endpoint}`, {
+      const response = await this.fetchWithTimeout(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API PUT] Response status: ${response.status}`);
+      }
+      
       if (!response.ok) {
-        if (response.status === 404) throw new Error('Wijn niet gevonden');
+        if (response.status === 404) {
+          console.error(`[API PUT] 404 Not Found: ${url}`);
+          throw new Error(`Niet gevonden op ${url}`);
+        }
         if (response.status >= 500) throw new Error('Serverfout, probeer later opnieuw');
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      
+      const result = await response.json();
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API PUT] Success:`, result);
+      }
+      
+      return result;
     } catch (error) {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        console.error(`[API PUT] Network error for ${url}:`, error);
         throw new Error('Kan geen verbinding maken met database');
       }
+      console.error(`[API PUT] Error for ${url}:`, error);
       throw error;
     }
   },
 
   async delete(endpoint) {
+    const url = `${API_CONFIG.baseURL}${endpoint}`;
+    if (API_CONFIG.debug) {
+      console.log(`[API DELETE] Deleting: ${url}`);
+    }
+    
     try {
-      const response = await this.fetchWithTimeout(`${API_CONFIG.baseURL}${endpoint}`, {
+      const response = await this.fetchWithTimeout(url, {
         method: 'DELETE'
       });
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API DELETE] Response status: ${response.status}`);
+      }
+      
       if (!response.ok) {
-        if (response.status === 404) throw new Error('Niet gevonden');
+        if (response.status === 404) {
+          console.error(`[API DELETE] 404 Not Found: ${url}`);
+          throw new Error('Niet gevonden');
+        }
         if (response.status >= 500) throw new Error('Serverfout, probeer later opnieuw');
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      if (API_CONFIG.debug) {
+        console.log(`[API DELETE] Success`);
+      }
+      
       return true;
     } catch (error) {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        console.error(`[API DELETE] Network error for ${url}:`, error);
         throw new Error('Kan geen verbinding maken met database');
       }
+      console.error(`[API DELETE] Error for ${url}:`, error);
       throw error;
     }
   }
@@ -162,7 +262,16 @@ function updateConnectionStatus(connected) {
   if (statusEl) {
     statusEl.className = connected ? 'connection-status connected' : 'connection-status disconnected';
     statusEl.querySelector('.status-text').textContent = connected ? 'Verbonden' : 'Niet verbonden';
+    
+    // Show API URL
+    const apiUrlDisplay = statusEl.querySelector('.api-url-display');
+    if (apiUrlDisplay) {
+      const url = new URL(API_CONFIG.baseURL);
+      apiUrlDisplay.textContent = `(${url.host})`;
+    }
   }
+  
+  console.log(`[Connection Status] ${connected ? 'Connected' : 'Disconnected'} to ${API_CONFIG.baseURL}`);
 }
 
 // Helper: Deep copy object
@@ -210,21 +319,34 @@ const app = {
   async loadDataFromAPI() {
     showLoadingOverlay('Laden van wijnen en proefnotities...');
     
+    console.log(`[loadDataFromAPI] Starting data load from ${API_CONFIG.baseURL}`);
+    
     try {
       const [wines, tastingNotes] = await Promise.all([
         api.get(API_CONFIG.endpoints.wines),
         api.get(API_CONFIG.endpoints.tastingNotes)
       ]);
       
-      appState.wines = wines || [];
-      appState.tastingNotes = tastingNotes || [];
+      // Ensure all IDs are stored as numbers
+      appState.wines = (wines || []).map(w => ({
+        ...w,
+        id: typeof w.id === 'string' ? parseInt(w.id, 10) : w.id
+      }));
+      appState.tastingNotes = (tastingNotes || []).map(t => ({
+        ...t,
+        id: typeof t.id === 'string' ? parseInt(t.id, 10) : t.id,
+        wine_id: typeof t.wine_id === 'string' ? parseInt(t.wine_id, 10) : t.wine_id
+      }));
+      
+      console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines and ${appState.tastingNotes.length} tasting notes`);
+      console.log(`[loadDataFromAPI] Wine IDs:`, appState.wines.map(w => w.id));
       
       updateConnectionStatus(true);
       this.showCollection();
       this.showToast('Data succesvol geladen', 'success');
       
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('[loadDataFromAPI] Failed to load data:', error);
       updateConnectionStatus(false);
       
       // Show error message
@@ -233,13 +355,17 @@ const app = {
       errorDiv.innerHTML = `
         <h2 style="color: var(--color-error); margin-bottom: var(--space-16);">⚠️ Kan niet verbinden met database</h2>
         <p style="margin-bottom: var(--space-16); color: var(--color-text);">${error.message}</p>
-        <p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: var(--space-16);">Zorg ervoor dat JSON Server draait op localhost:3001</p>
+        <p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: var(--space-16);">Huidige API URL: <strong>${API_CONFIG.baseURL}</strong></p>
         <div style="background: var(--color-secondary); padding: var(--space-16); border-radius: var(--radius-base); margin-bottom: var(--space-16); text-align: left;">
-          <strong>Setup instructies:</strong><br>
-          1. Maak een db.json bestand in je projectmap<br>
-          2. Start JSON Server: <code style="background: var(--color-surface); padding: 2px 6px; border-radius: 4px;">json-server --watch db.json --port 3001</code>
+          <strong>Troubleshooting:</strong><br>
+          1. Controleer of JSON Server draait<br>
+          2. Open browser console (F12) voor details<br>
+          3. Klik op "API Instellingen" om URL aan te passen
         </div>
-        <button class="btn btn--primary" onclick="location.reload()">Opnieuw proberen</button>
+        <div style="display: flex; gap: var(--space-12);">
+          <button class="btn btn--secondary" onclick="app.showApiConfig(); this.parentElement.parentElement.remove();">⚙️ API Instellingen</button>
+          <button class="btn btn--primary" onclick="location.reload()">🔄 Opnieuw proberen</button>
+        </div>
       `;
       document.body.appendChild(errorDiv);
       
@@ -269,7 +395,29 @@ const app = {
   },
 
   getWineById: function(id) {
-    return appState.wines.find(w => w.id === id);
+    // Ensure ID is a number for comparison
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    
+    if (API_CONFIG.debug) {
+      console.log(`[getWineById] Looking for wine with ID: ${numericId} (original: ${id}, type: ${typeof id})`);
+      console.log(`[getWineById] Available wine IDs:`, appState.wines.map(w => `${w.id} (${typeof w.id})`));
+    }
+    
+    const wine = appState.wines.find(w => {
+      // Compare as numbers to handle string/number mismatch
+      const wineId = typeof w.id === 'string' ? parseInt(w.id, 10) : w.id;
+      return wineId === numericId;
+    });
+    
+    if (API_CONFIG.debug) {
+      if (wine) {
+        console.log(`[getWineById] Found wine:`, wine);
+      } else {
+        console.warn(`[getWineById] Wine not found with ID: ${numericId}`);
+      }
+    }
+    
+    return wine;
   },
 
   getTastingById: function(id) {
@@ -325,12 +473,73 @@ const app = {
     }
   },
 
-  showWineDetail: function(wineId) {
+  showWineDetail: async function(wineId) {
+    // Normalize ID to number
+    const numericId = typeof wineId === 'string' ? parseInt(wineId, 10) : wineId;
+    
+    console.log(`[showWineDetail] Requested wine ID: ${numericId} (original: ${wineId})`);
+    
     appState.currentView = 'wineDetail';
-    appState.currentWineId = wineId;
+    appState.currentWineId = numericId;
     appState.currentTastingId = null;
     this.hideAllViews();
     document.getElementById('wineDetailView').style.display = 'block';
+    
+    // First try to find wine in local state
+    let wine = this.getWineById(numericId);
+    
+    // If not found locally, try to fetch from API as fallback
+    if (!wine) {
+      console.warn(`[showWineDetail] Wine ID ${numericId} not found in local state, trying API fallback...`);
+      
+      try {
+        showLoadingOverlay('Wijn laden...');
+        const fetchedWine = await api.get(`${API_CONFIG.endpoints.wines}/${numericId}`);
+        
+        if (fetchedWine) {
+          console.log(`[showWineDetail] Successfully fetched wine from API:`, fetchedWine);
+          
+          // Normalize the ID
+          fetchedWine.id = typeof fetchedWine.id === 'string' ? parseInt(fetchedWine.id, 10) : fetchedWine.id;
+          
+          // Add to local state if not present
+          const existingIndex = appState.wines.findIndex(w => w.id === fetchedWine.id);
+          if (existingIndex === -1) {
+            appState.wines.push(fetchedWine);
+            console.log(`[showWineDetail] Added wine to local state`);
+          } else {
+            appState.wines[existingIndex] = fetchedWine;
+            console.log(`[showWineDetail] Updated wine in local state`);
+          }
+          
+          wine = fetchedWine;
+        }
+        
+        hideLoadingOverlay();
+      } catch (error) {
+        console.error(`[showWineDetail] Failed to fetch wine from API:`, error);
+        hideLoadingOverlay();
+        
+        this.showToast(
+          `Wijn ID ${numericId} niet gevonden. API: ${API_CONFIG.baseURL}${API_CONFIG.endpoints.wines}/${numericId}. Open console (F12) voor details.`,
+          'error'
+        );
+        this.showCollection();
+        return;
+      }
+    }
+    
+    // If still not found, show error
+    if (!wine) {
+      console.error(`[showWineDetail] Wine still not found after all attempts. ID: ${numericId}`);
+      this.showToast(
+        `Wijn niet gevonden (ID: ${numericId}). Beschikbare IDs: ${appState.wines.map(w => w.id).join(', ')}. Klik op API-status voor instellingen.`,
+        'error'
+      );
+      this.showCollection();
+      return;
+    }
+    
     this.renderWineDetail();
   },
 
@@ -943,6 +1152,10 @@ const app = {
       wineGrid.innerHTML = '<div class="empty-state">Geen wijnen gevonden</div>';
       return;
     }
+    
+    if (API_CONFIG.debug) {
+      console.log(`[renderWines] Rendering ${winesToRender.length} wines`);
+    }
 
     wineGrid.innerHTML = winesToRender.map(wine => {
       const status = this.getWineStatus(wine);
@@ -950,6 +1163,10 @@ const app = {
       const cardClass = isOutOfStock ? 'wine-card wine-card--out-of-stock' : 'wine-card';
       const tastingCount = this.getTastingsForWine(wine.id).length;
       const kleurBadge = wine.kleur ? `<span class="kleur-badge kleur-badge--${wine.kleur.toLowerCase()}">${wine.kleur}</span>` : '';
+      
+      if (API_CONFIG.debug && Math.random() < 0.1) { // Log 10% of wines to avoid console spam
+        console.log(`[renderWines] Wine:`, { id: wine.id, naam: wine.naam, type: typeof wine.id });
+      }
       
       return `
         <div class="${cardClass}" onclick="app.showWineDetail(${wine.id})">
@@ -1305,11 +1522,113 @@ const app = {
   },
 
   // ============================================================================
+  // API CONFIGURATION UI
+  // ============================================================================
+  showApiConfig: function() {
+    const modal = document.getElementById('apiConfigModal');
+    if (modal) {
+      modal.style.display = 'flex';
+      document.getElementById('apiUrlInput').value = API_CONFIG.baseURL;
+      document.getElementById('connectionTestResult').style.display = 'none';
+    }
+  },
+
+  closeApiConfig: function() {
+    const modal = document.getElementById('apiConfigModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  },
+
+  testApiConnection: async function() {
+    const urlInput = document.getElementById('apiUrlInput');
+    const testResult = document.getElementById('connectionTestResult');
+    const testUrl = urlInput.value.trim();
+    
+    if (!testUrl) {
+      this.showToast('Voer een URL in');
+      return;
+    }
+    
+    testResult.style.display = 'block';
+    testResult.style.background = 'var(--color-bg-2)';
+    testResult.style.color = 'var(--color-text)';
+    testResult.innerHTML = '<p>⏳ Verbinding testen...</p>';
+    
+    console.log(`[testApiConnection] Testing connection to: ${testUrl}`);
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`${testUrl}/wines`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const wines = await response.json();
+        console.log(`[testApiConnection] Success! Found ${wines.length} wines`);
+        
+        testResult.style.background = 'var(--color-bg-3)';
+        testResult.innerHTML = `
+          <p><strong>✅ Verbinding succesvol!</strong></p>
+          <p>Gevonden: ${wines.length} wijn${wines.length !== 1 ? 'en' : ''}</p>
+          <p style="font-size: var(--font-size-sm); margin-top: var(--space-8);">Klik op "Opslaan & Herladen" om deze API te gebruiken.</p>
+        `;
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error(`[testApiConnection] Failed:`, error);
+      
+      testResult.style.background = 'rgba(var(--color-error-rgb), 0.1)';
+      testResult.style.color = 'var(--color-error)';
+      
+      let errorMsg = 'Verbinding mislukt';
+      if (error.name === 'AbortError') {
+        errorMsg = 'Timeout - server reageert niet binnen 5 seconden';
+      } else if (error.message.includes('Failed to fetch')) {
+        errorMsg = 'Kan server niet bereiken. Controleer of JSON Server draait.';
+      } else {
+        errorMsg = error.message;
+      }
+      
+      testResult.innerHTML = `
+        <p><strong>❌ ${errorMsg}</strong></p>
+        <p style="font-size: var(--font-size-sm); margin-top: var(--space-8);">Probeer: http://localhost:3001 of http://127.0.0.1:3001</p>
+      `;
+    }
+  },
+
+  saveApiConfig: function() {
+    const urlInput = document.getElementById('apiUrlInput');
+    const newUrl = urlInput.value.trim();
+    
+    if (!newUrl) {
+      this.showToast('Voer een URL in');
+      return;
+    }
+    
+    console.log(`[saveApiConfig] Saving new API URL: ${newUrl}`);
+    
+    API_CONFIG.baseURL = newUrl;
+    window.savedApiUrl = newUrl;
+    
+    this.closeApiConfig();
+    this.showToast('API configuratie opgeslagen. Herladen...', 'success');
+    
+    setTimeout(() => {
+      location.reload();
+    }, 1000);
+  },
+
+  // ============================================================================
   // TOAST NOTIFICATIONS
   // ============================================================================
   showToast: function(message, type = 'info') {
     const toast = document.getElementById('toast');
     if (!toast) return;
+    
+    console.log(`[Toast ${type.toUpperCase()}] ${message}`);
     
     toast.textContent = message;
     toast.className = 'toast show';
@@ -1319,12 +1638,15 @@ const app = {
       toast.classList.add('error');
     }
     
+    // Longer timeout for error messages so user can read them
+    const timeout = type === 'error' ? 6000 : 3000;
+    
     setTimeout(() => {
       toast.classList.remove('show');
       setTimeout(() => {
         toast.className = 'toast';
       }, 300);
-    }, 3000);
+    }, timeout);
   }
 };
 
@@ -1332,5 +1654,14 @@ const app = {
 // INITIALIZATION
 // ============================================================================
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('='.repeat(60));
+  console.log('🍷 WIJNKELDER BEHEER - DEBUG MODE ENABLED');
+  console.log('='.repeat(60));
+  console.log(`API Base URL: ${API_CONFIG.baseURL}`);
+  console.log(`Debug Mode: ${API_CONFIG.debug}`);
+  console.log('Open deze console om gedetailleerde API logs te zien.');
+  console.log('Klik op het verbindingsstatus icoon om API instellingen te openen.');
+  console.log('='.repeat(60));
+  
   app.init();
 });
