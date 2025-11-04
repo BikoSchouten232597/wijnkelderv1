@@ -41,11 +41,13 @@
     { "id": 1, "name": "Kelder", "temperature": 12 },
     { "id": 2, "name": "Klimaatkast", "temperature": 18 }
   ],
-    "users": [
+    {
+  "users": [
     {
       "id": 1,
       "name": "Hoofd",
       "email": "hoofd@email.nl",
+      "password": "wachtwoord_gehasht",
       "color": "#e74c3c",
       "role": "admin"
     },
@@ -53,6 +55,7 @@
       "id": 2,
       "name": "Jij",
       "email": "jij@email.nl",
+      "password": "wachtwoord_gehasht",
       "color": "#3498db",
       "role": "user"
     }
