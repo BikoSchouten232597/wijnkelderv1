@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://31.97.34.22:3001',
+  baseURL: 'http://wijndb.schoutendigital.com',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
