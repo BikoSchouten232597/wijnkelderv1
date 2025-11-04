@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -3198,6 +3198,17 @@ const app = {
     this.hideAllViews();
     this.updateNavigation('users');
     document.getElementById('usersView').style.display = 'block';
+    
+    // Update header actions based on admin status
+    const headerActions = document.getElementById('usersHeaderActions');
+    if (headerActions) {
+      if (this.isAdmin()) {
+        headerActions.innerHTML = '<button class="btn btn--primary" onclick="app.showUserForm()">+ Voeg gebruiker toe</button>';
+      } else {
+        headerActions.innerHTML = '';
+      }
+    }
+    
     this.renderUsers();
   },
 
@@ -3324,32 +3335,90 @@ const app = {
       return;
     }
     
-    container.innerHTML = appState.users.map(user => {
+    const isAdmin = this.isAdmin();
+    
+    // TWO DIFFERENT VIEWS:
+    // 1. Admin view: Management panel + directory
+    // 2. Regular user view: Directory only with "Bekijk kelder" buttons
+    
+    let html = '';
+    
+    if (isAdmin) {
+      // ADMIN VIEW: Show management panel
+      html += '<div style="margin-bottom: var(--space-32);">';
+      html += '<h3 style="margin-bottom: var(--space-16); font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold);">👑 Gebruikersbeheer (Admin)</h3>';
+      html += appState.users.map(user => {
+        const wineCount = appState.wines.filter(w => w.user_id === user.id).length;
+        const tastingCount = appState.tastingNotes.filter(t => t.user_id === user.id).length;
+        const isCurrentUser = user.id === appState.currentUserId;
+        
+        return `
+          <div class="user-card">
+            <div class="user-card-color" style="background: ${user.color};"></div>
+            <div class="user-card-info">
+              <h3>${user.name} ${isCurrentUser ? '(jij)' : ''} ${user.role === 'admin' ? '<span class="admin-badge">👑 Admin</span>' : ''}</h3>
+              <p>${user.email || 'Geen email'}</p>
+              <p style="margin-top: var(--space-4);">${wineCount} wijn${wineCount !== 1 ? 'en' : ''}, ${tastingCount} proefnotitie${tastingCount !== 1 ? 's' : ''}</p>
+            </div>
+            <div class="user-card-actions">
+              <button class="btn btn--sm btn--secondary" onclick="app.showUserForm(${user.id})">✏️ Bewerken</button>
+              ${appState.users.length > 1 ? `<button class="btn btn--sm btn--outline" onclick="app.deleteUser(${user.id})">🗑️ Verwijderen</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+      html += '</div>';
+      
+      // Add user directory below management panel
+      html += '<div style="border-top: 2px solid var(--color-border); padding-top: var(--space-24); margin-top: var(--space-24);">';
+      html += '<h3 style="margin-bottom: var(--space-16); font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold);">👥 Gebruikersdirectory</h3>';
+    }
+    
+    // USER DIRECTORY (shown to both admins and regular users)
+    html += appState.users.map(user => {
       const wineCount = appState.wines.filter(w => w.user_id === user.id).length;
       const tastingCount = appState.tastingNotes.filter(t => t.user_id === user.id).length;
       const isCurrentUser = user.id === appState.currentUserId;
+      const totalBottles = appState.wines.filter(w => w.user_id === user.id).reduce((sum, w) => sum + (w.aantal_flessen || 0), 0);
       
       return `
         <div class="user-card">
           <div class="user-card-color" style="background: ${user.color};"></div>
           <div class="user-card-info">
-            <h3>${user.name} ${isCurrentUser ? '(actief)' : ''}</h3>
+            <h3>${user.name} ${isCurrentUser ? '(jij)' : ''} ${user.role === 'admin' ? '<span class="admin-badge">👑 Admin</span>' : ''}</h3>
             <p>${user.email || 'Geen email'}</p>
-            <p style="margin-top: var(--space-4);">${wineCount} wijn${wineCount !== 1 ? 'en' : ''}, ${tastingCount} proefnotitie${tastingCount !== 1 ? 's' : ''}</p>
+            <p style="margin-top: var(--space-4);">
+              🍷 ${wineCount} wijn${wineCount !== 1 ? 'en' : ''} • 
+              🍾 ${totalBottles} fles${totalBottles !== 1 ? 'sen' : ''} • 
+              📝 ${tastingCount} proefnotitie${tastingCount !== 1 ? 's' : ''}
+            </p>
           </div>
           <div class="user-card-actions">
-            <button class="btn btn--sm btn--secondary" onclick="app.showUserForm(${user.id})">Bewerken</button>
-            ${appState.users.length > 1 ? `<button class="btn btn--sm btn--outline" onclick="app.deleteUser(${user.id})">Verwijderen</button>` : ''}
+            ${!isCurrentUser ? `
+              <button class="btn btn--sm btn--primary" onclick="app.viewUserKelder(${user.id})">
+                🔍 Bekijk kelder
+              </button>
+            ` : `
+              <button class="btn btn--sm btn--secondary" disabled style="opacity: 0.5; cursor: not-allowed;">
+                Dit ben jij
+              </button>
+            `}
           </div>
         </div>
       `;
     }).join('');
+    
+    if (isAdmin) {
+      html += '</div>'; // Close directory section
+    }
+    
+    container.innerHTML = html;
   },
 
   showUserForm: function(userId = null) {
     // Check if user is admin
     if (!this.isAdmin()) {
-      this.showToast('Alleen administrators kunnen gebruikers bewerken', 'error');
+      this.showToast('Alleen administrators kunnen gebruikers beheren', 'error');
       return;
     }
     
