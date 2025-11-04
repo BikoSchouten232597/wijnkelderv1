@@ -3,7 +3,7 @@
 // ============================================================================
 const API_CONFIG = {
   baseURL: 'http://31.97.34.22:3001',
-  timeout: 5000,
+  timeout: 10000,
   endpoints: {
     wines: '/wines',
     tastingNotes: '/tastingNotes'
