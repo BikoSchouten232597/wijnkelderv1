@@ -1,7 +1,6 @@
 #!/bin/sh
 
-# Start nginx in background
-nginx
+json-server --watch /app/db.json --port 3001 &
+http-server /app/public -p 80 &
 
-# Start json-server
-json-server --watch /usr/src/app/db.json --host 0.0.0.0 --port 3001
+wait
