@@ -41,7 +41,6 @@
     { "id": 1, "name": "Kelder", "temperature": 12 },
     { "id": 2, "name": "Klimaatkast", "temperature": 18 }
   ],
-    {
   "users": [
     {
       "id": 1,
