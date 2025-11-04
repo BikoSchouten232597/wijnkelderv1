@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -277,6 +277,31 @@ function updateConnectionStatus(connected) {
 // Helper: Deep copy object
 function deepCopy(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// ============================================================================
+// ID GENERATION
+// ============================================================================
+/**
+ * Generate a numeric ID for new wines and tasting notes
+ * Uses timestamp + random number to ensure uniqueness
+ * @returns {number} A numeric ID
+ */
+function generateNumericId() {
+  // Timestamp-based: current time in seconds + random number (0-999)
+  const id = Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
+  
+  if (API_CONFIG.debug) {
+    console.log(`[generateNumericId] Generated ID: ${id} (type: ${typeof id})`);
+  }
+  
+  // Validate that it's a number
+  if (typeof id !== 'number' || isNaN(id) || id <= 0) {
+    console.error(`[generateNumericId] Invalid ID generated: ${id}`);
+    throw new Error('Failed to generate valid numeric ID');
+  }
+  
+  return id;
 }
 
 // ============================================================================
@@ -638,27 +663,62 @@ const app = {
       return;
     }
     
-    const wineData = { naam, wijnhuis, vintage, streek, druif, kleur, locatie, aantal_flessen };
-
     const submitBtn = event.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.classList.add('loading');
 
     try {
       if (appState.editingWineId) {
-        const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, {
-          ...wineData,
-          id: appState.editingWineId
-        });
+        // Editing existing wine - use existing ID
+        const wineData = { 
+          id: appState.editingWineId,
+          naam, 
+          wijnhuis, 
+          vintage, 
+          streek, 
+          druif, 
+          kleur, 
+          locatie, 
+          aantal_flessen 
+        };
+        
+        const updatedWine = await api.put(`${API_CONFIG.endpoints.wines}/${appState.editingWineId}`, wineData);
+        
+        // Ensure ID is numeric
+        updatedWine.id = typeof updatedWine.id === 'string' ? parseInt(updatedWine.id, 10) : updatedWine.id;
         
         const wineIndex = appState.wines.findIndex(w => w.id === appState.editingWineId);
         if (wineIndex !== -1) {
           appState.wines[wineIndex] = updatedWine;
         }
         
+        console.log(`[saveWine] Updated wine ID ${updatedWine.id} (type: ${typeof updatedWine.id})`);
         this.showToast('Wijn bijgewerkt', 'success');
       } else {
+        // Creating new wine - generate numeric ID
+        const numericId = generateNumericId();
+        
+        const wineData = {
+          id: numericId,
+          naam, 
+          wijnhuis, 
+          vintage, 
+          streek, 
+          druif, 
+          kleur, 
+          locatie, 
+          aantal_flessen
+        };
+        
+        console.log(`[saveWine] Creating new wine with ID: ${numericId} (type: ${typeof numericId})`);
+        
         const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
+        
+        // Ensure ID is numeric after response
+        newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
+        
+        console.log(`[saveWine] Wine created with ID: ${newWine.id} (type: ${typeof newWine.id})`);
+        
         appState.wines.push(newWine);
         this.showToast('Wijn toegevoegd', 'success');
       }
@@ -1036,47 +1096,89 @@ const app = {
       manualStarReasons.push(reason3);
     }
     
-    const tastingData = {
-      wine_id: appState.currentWineId,
-      datum: document.getElementById('tastingDatum').value,
-      wijntype: wijntype,
-      kleur: kleur,
-      intensiteit: intensiteit,
-      geurintensiteit: geurintensiteit,
-      geur_primair: formData.getAll('geur_primair'),
-      geur_secundair: formData.getAll('geur_secundair'),
-      geur_tertiair: formData.getAll('geur_tertiair'),
-      droog: droog,
-      tannines: tannines,
-      zuur: zuur,
-      alcohol: alcohol,
-      body: body,
-      afdronk: afdronk,
-      automatic_stars: halfStars,
-      manual_stars: manualHalfStars,
-      manual_star_reasons: manualStarReasons,
-      notities: document.getElementById('tastingNotities').value.trim()
-    };
-
     const submitBtn = event.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.classList.add('loading');
 
     try {
       if (appState.currentTastingId) {
+        // Editing existing tasting note - use existing ID
+        const tastingData = {
+          id: appState.currentTastingId,
+          wine_id: appState.currentWineId,
+          datum: document.getElementById('tastingDatum').value,
+          wijntype: wijntype,
+          kleur: kleur,
+          intensiteit: intensiteit,
+          geurintensiteit: geurintensiteit,
+          geur_primair: formData.getAll('geur_primair'),
+          geur_secundair: formData.getAll('geur_secundair'),
+          geur_tertiair: formData.getAll('geur_tertiair'),
+          droog: droog,
+          tannines: tannines,
+          zuur: zuur,
+          alcohol: alcohol,
+          body: body,
+          afdronk: afdronk,
+          automatic_stars: halfStars,
+          manual_stars: manualHalfStars,
+          manual_star_reasons: manualStarReasons,
+          notities: document.getElementById('tastingNotities').value.trim()
+        };
+        
         const updatedTasting = await api.put(
           `${API_CONFIG.endpoints.tastingNotes}/${appState.currentTastingId}`,
-          { ...tastingData, id: appState.currentTastingId }
+          tastingData
         );
+        
+        // Ensure IDs are numeric
+        updatedTasting.id = typeof updatedTasting.id === 'string' ? parseInt(updatedTasting.id, 10) : updatedTasting.id;
+        updatedTasting.wine_id = typeof updatedTasting.wine_id === 'string' ? parseInt(updatedTasting.wine_id, 10) : updatedTasting.wine_id;
         
         const tastingIndex = appState.tastingNotes.findIndex(t => t.id === appState.currentTastingId);
         if (tastingIndex !== -1) {
           appState.tastingNotes[tastingIndex] = updatedTasting;
         }
         
+        console.log(`[saveTastingNote] Updated tasting note ID ${updatedTasting.id} (type: ${typeof updatedTasting.id})`);
         this.showToast('Proefnotitie bijgewerkt', 'success');
       } else {
+        // Creating new tasting note - generate numeric ID
+        const numericId = generateNumericId();
+        
+        const tastingData = {
+          id: numericId,
+          wine_id: appState.currentWineId,
+          datum: document.getElementById('tastingDatum').value,
+          wijntype: wijntype,
+          kleur: kleur,
+          intensiteit: intensiteit,
+          geurintensiteit: geurintensiteit,
+          geur_primair: formData.getAll('geur_primair'),
+          geur_secundair: formData.getAll('geur_secundair'),
+          geur_tertiair: formData.getAll('geur_tertiair'),
+          droog: droog,
+          tannines: tannines,
+          zuur: zuur,
+          alcohol: alcohol,
+          body: body,
+          afdronk: afdronk,
+          automatic_stars: halfStars,
+          manual_stars: manualHalfStars,
+          manual_star_reasons: manualStarReasons,
+          notities: document.getElementById('tastingNotities').value.trim()
+        };
+        
+        console.log(`[saveTastingNote] Creating new tasting note with ID: ${numericId} (type: ${typeof numericId})`);
+        
         const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
+        
+        // Ensure IDs are numeric after response
+        newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
+        newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
+        
+        console.log(`[saveTastingNote] Tasting note created with ID: ${newTasting.id} (type: ${typeof newTasting.id})`);
+        
         appState.tastingNotes.push(newTasting);
         this.showToast('Proefnotitie opgeslagen', 'success');
       }
