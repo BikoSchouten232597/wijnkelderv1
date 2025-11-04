@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://127.0.0.1:3001',
+  baseURL: 'http://biko-schouten232597/wijnkelderv1:main-pws8s8k0ckws8cg08s4ckkgk:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
