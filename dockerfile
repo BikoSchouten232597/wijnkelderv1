@@ -20,7 +20,7 @@ COPY ./db.json /usr/src/app/db.json
 COPY ./nginx.conf /etc/nginx/nginx.conf
 
 # Exposeer poorten voor nginx (80) en json-server (3000)
-EXPOSE 80 3000
+EXPOSE 80 3001
 
 # Start zowel nginx als json-server (via een shell script)
 COPY ./start.sh /start.sh
