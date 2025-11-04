@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Kopieer het db.json bestand nodig voor json-server
 COPY ./db.json /app/db.json
+COPY ./start.sh /app/start.sh
 
 # Installeer json-server globaal
 RUN npm install -g json-server
