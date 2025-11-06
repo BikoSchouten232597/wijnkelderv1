@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wijnkelder Beheer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-sha256/0.9.0/sha256.min.js"></script>
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -48,6 +48,7 @@
                         <span class="api-url-display" style="font-size: var(--font-size-xs); color: var(--color-text-secondary); margin-left: var(--space-4);"></span>
                     </div>
                     <button class="btn btn--primary" onclick="app.showWineForm()">+ Nieuwe Wijn</button>
+                    <button class="btn btn--secondary" onclick="app.showQuickTastingForm()">🍷 Nieuwe Proefnotitie</button>
                 </div>
             </header>
             
@@ -180,6 +181,283 @@
                     </div>
                     <div id="tastingNotesList"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Quick Tasting Form View (Wine + Tasting combined) -->
+        <div id="quickTastingFormView" class="view" style="display: none;">
+            <header class="app-header">
+                <button class="btn-back" onclick="app.showCollection()">← Terug</button>
+                <h1>🍷 Nieuwe Proefnotitie</h1>
+            </header>
+            
+            <div class="form-container">
+                <form id="quickTastingForm" onsubmit="app.saveQuickTasting(event)">
+                    <!-- Wine Basic Info Section -->
+                    <div class="form-section">
+                        <h3>🍷 Wijn Basisgegevens</h3>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Naam *</label>
+                            <input type="text" id="quickWineNaam" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Wijnhuis *</label>
+                            <input type="text" id="quickWineWijnhuis" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Vintage *</label>
+                            <input type="number" id="quickWineVintage" class="form-control" min="1900" max="2099" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Streek *</label>
+                            <input type="text" id="quickWineStreek" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Druif *</label>
+                            <input type="text" id="quickWineDruif" class="form-control" placeholder="Bijv. Chardonnay, Cabernet Sauvignon" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Kleur *</label>
+                            <select id="quickWineKleur" class="form-control" required onchange="app.updateQuickColorOptions()">
+                                <option value="">Selecteer kleur</option>
+                                <option value="Wit">Wit</option>
+                                <option value="Rosé">Rosé</option>
+                                <option value="Rood">Rood</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Aantal flessen</label>
+                            <input type="number" id="quickWineAantalFlessen" class="form-control" min="0" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Prijs per fles (€)</label>
+                            <input type="number" id="quickWinePrijs" class="form-control" min="0" step="0.01" placeholder="Optioneel">
+                        </div>
+                    </div>
+
+                    <!-- Tasting Note Section (simplified) -->
+                    <div class="form-section">
+                        <h3>📝 Proefnotitie</h3>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Datum</label>
+                            <input type="date" id="quickTastingDatum" class="form-control" required>
+                        </div>
+
+                        <div class="form-group" id="quickColorOptionsGroup" style="display: none;">
+                            <label class="form-label">Kleur *</label>
+                            <div id="quickColorOptions" class="radio-group"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Intensiteit (visueel) *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickIntensiteit" value="Laag" required>
+                                    <span>💧 Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickIntensiteit" value="Medium" required>
+                                    <span>💧💧 Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickIntensiteit" value="Hoog" required>
+                                    <span>💧💧💧 Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Geurintensiteit *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickGeurintensiteit" value="Laag" required>
+                                    <span>📊 Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickGeurintensiteit" value="Medium" required>
+                                    <span>📊📊 Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickGeurintensiteit" value="Hoog" required>
+                                    <span>📊📊📊 Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Primaire Aroma's</label>
+                            <div class="checkbox-grid">
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Citrus">
+                                    <span>🍋 Citrus</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Boomvruchten">
+                                    <span>🍎 Boomvruchten</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Steenfruit">
+                                    <span>🍑 Steenfruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Tropisch fruit">
+                                    <span>🍍 Tropisch fruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Rood fruit">
+                                    <span>🍓 Rood fruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Donker fruit">
+                                    <span>🫐 Donker fruit</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Bloemen">
+                                    <span>🌸 Bloemen</span>
+                                </label>
+                                <label class="checkbox-label aroma-option">
+                                    <input type="checkbox" name="quickGeur_primair" value="Kruiden">
+                                    <span>🌿 Kruiden</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Droog *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickDroog" value="0" required>
+                                    <span>Heel droog (0)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickDroog" value="1" required>
+                                    <span>Droog (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickDroog" value="2" required>
+                                    <span>Halfzoet (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickDroog" value="3" required>
+                                    <span>Zoet (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Tannines *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickTannines" value="0" required>
+                                    <span>Niet aanwezig (0)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickTannines" value="1" required>
+                                    <span>Laag (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickTannines" value="2" required>
+                                    <span>Medium (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickTannines" value="3" required>
+                                    <span>Hoog (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Zuur *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickZuur" value="1" required>
+                                    <span>Laag (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickZuur" value="2" required>
+                                    <span>Medium (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickZuur" value="3" required>
+                                    <span>Hoog (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Alcohol *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickAlcohol" value="1" required>
+                                    <span>Laag (1)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickAlcohol" value="2" required>
+                                    <span>Medium (2)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickAlcohol" value="3" required>
+                                    <span>Hoog (3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Body *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickBody" value="Laag" required>
+                                    <span>Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickBody" value="Medium" required>
+                                    <span>Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickBody" value="Hoog" required>
+                                    <span>Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Afdronk *</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="quickAfdronk" value="Laag" required>
+                                    <span>⏱️ Laag</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickAfdronk" value="Medium" required>
+                                    <span>⏱️⏱️ Medium</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="quickAfdronk" value="Hoog" required>
+                                    <span>⏱️⏱️⏱️ Hoog</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Notities</label>
+                            <textarea id="quickTastingNotities" class="form-control" rows="3" placeholder="Optionele opmerkingen..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn--secondary" onclick="app.showCollection()">Annuleren</button>
+                        <button type="submit" class="btn btn--primary">Opslaan</button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -608,29 +886,9 @@
                 </div>
                 
                 <div class="settings-section">
-                    <h3>Wachtwoord wijzigen</h3>
-                    <p>Wijzig je persoonlijke wachtwoord</p>
-                    <form id="changePasswordForm" onsubmit="app.changeOwnPassword(event)" style="margin-top: var(--space-16);">
-                        <div class="form-group">
-                            <label class="form-label">Huidig wachtwoord</label>
-                            <input type="password" id="currentPassword" class="form-control" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Nieuw wachtwoord (min. 6 karakters)</label>
-                            <input type="password" id="newPassword" class="form-control" required minlength="6">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Bevestig nieuw wachtwoord</label>
-                            <input type="password" id="confirmPassword" class="form-control" required minlength="6">
-                        </div>
-                        <button type="submit" class="btn btn--primary">Wijzig wachtwoord</button>
-                    </form>
-                </div>
-                
-                <div class="settings-section">
                     <h3>Sessie</h3>
-                    <p>Log uit en wissel van gebruiker</p>
-                    <button class="btn btn--outline" onclick="app.logout()" style="margin-top: var(--space-16);">🚪 Uitloggen</button>
+                    <p>Wissel van gebruiker</p>
+                    <button class="btn btn--outline" onclick="app.switchUser()" style="margin-top: var(--space-16);">🔄 Wissel Gebruiker</button>
                 </div>
                 
                 <div class="settings-section">
@@ -757,28 +1015,15 @@
 
     <div id="toast" class="toast"></div>
 
-    <!-- Login Modal -->
-    <div id="loginModal" class="modal" style="display: none;">
+    <!-- User Selector Modal (No Password) -->
+    <div id="userSelectorModal" class="modal" style="display: none;">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <h2>🔐 Inloggen</h2>
+                <h2>👤 Welke gebruiker ben jij?</h2>
             </div>
             <div class="modal-body">
-                <form id="loginForm" onsubmit="app.handleLogin(event)">
-                    <div class="form-group">
-                        <label class="form-label">Gebruiker</label>
-                        <select id="loginUsername" class="form-control" required>
-                            <option value="">Selecteer gebruiker</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Wachtwoord</label>
-                        <input type="password" id="loginPassword" class="form-control" required placeholder="Voer wachtwoord in">
-                    </div>
-                    <div id="loginError" style="display: none; padding: var(--space-12); background: rgba(var(--color-error-rgb), 0.1); color: var(--color-error); border-radius: var(--radius-base); margin-bottom: var(--space-16);"></div>
-                    <button type="submit" class="btn btn--primary btn--full-width">Inloggen</button>
-                </form>
+                <div id="userSelectorList" class="user-selector-list"></div>
             </div>
         </div>
     </div>
@@ -801,11 +1046,6 @@
                     <div class="form-group">
                         <label class="form-label">Email</label>
                         <input type="email" id="userEmail" class="form-control">
-                    </div>
-                    <div class="form-group" id="userPasswordGroup" style="display: none;">
-                        <label class="form-label">Wachtwoord (min. 6 karakters)</label>
-                        <input type="password" id="userPassword" class="form-control" minlength="6">
-                        <p class="form-helper" style="margin-top: var(--space-8); font-size: var(--font-size-sm); color: var(--color-text-secondary);">Alleen invullen voor nieuwe gebruikers of om wachtwoord te wijzigen</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Kleur *</label>

@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -348,19 +348,8 @@ const api = {
 };
 
 // ============================================================================
-// PASSWORD HASHING (SHA-256)
+// NO PASSWORD SYSTEM - Simple user selection
 // ============================================================================
-function hashPassword(password) {
-  // Use sha256 library from CDN (synchronous)
-  const salt = 'wijnkelder_salt_2025';
-  const hashed = sha256(password + salt);
-  return hashed;
-}
-
-function verifyPassword(inputPassword, storedHash) {
-  const inputHash = hashPassword(inputPassword);
-  return inputHash === storedHash;
-}
 
 // ============================================================================
 // GLOBAL STATE MANAGEMENT
@@ -645,10 +634,9 @@ const app = {
       }
       console.log(`[loadDataFromAPI] ✓ Loaded ${appState.comments.length} comments from database`);
       
-      // Ensure default admin user exists with password
+      // Ensure default user exists
       if (appState.users.length === 0) {
-        const defaultPasswordHash = hashPassword('demo123');
-        const defaultUser = { id: 1, name: "Hoofd", email: "admin@email.nl", color: "#e74c3c", role: "admin", password: defaultPasswordHash };
+        const defaultUser = { id: 1, name: "Hoofd", email: "admin@email.nl", color: "#e74c3c", role: "admin" };
         try {
           const newUser = await api.post('/users', defaultUser);
           appState.users.push(newUser);
@@ -658,32 +646,17 @@ const app = {
         }
       }
       
-      // Ensure all users have passwords (for existing databases)
-      for (let user of appState.users) {
-        if (!user.password) {
-          const defaultPasswordHash = hashPassword('demo123');
-          user.password = defaultPasswordHash;
-          try {
-            await api.put(`/users/${user.id}`, user);
-            console.log(`[loadDataFromAPI] Added default password to user: ${user.name}`);
-          } catch (err) {
-            console.warn(`Failed to update user ${user.id} with password:`, err);
-          }
-        }
-      }
-      
       // Don't auto-select user - require login
       appState.isLoggedIn = false;
       appState.currentUserId = null;
       
       console.log(`[loadDataFromAPI] Loaded ${appState.wines.length} wines, ${appState.tastingNotes.length} tasting notes, ${appState.locations.length} locations, ${appState.users.length} users`);
       console.log(`[loadDataFromAPI] Wine IDs:`, appState.wines.map(w => w.id));
-      console.log(`[loadDataFromAPI] Default password for all users: demo123`);
       
       updateConnectionStatus(true);
       appState.isOfflineMode = false;
-      // Don't auto-show collection - wait for login
-      this.showToast('Data geladen - Log in om te beginnen', 'success');
+      // Show user selector instead of login
+      this.showUserSelector();
       
     } catch (error) {
       console.error('[loadDataFromAPI] Failed to load data:', error);
@@ -721,13 +694,6 @@ const app = {
     
     const dummyData = generateDummyData();
     
-    // Add passwords to users (synchronous)
-    const defaultPasswordHash = hashPassword('demo123');
-    dummyData.users = dummyData.users.map(u => ({
-      ...u,
-      password: defaultPasswordHash
-    }));
-    
     appState.wines = dummyData.wines;
     appState.tastingNotes = dummyData.tastingNotes;
     appState.locations = dummyData.locations;
@@ -746,9 +712,9 @@ const app = {
     // Show offline indicator
     this.showOfflineIndicator();
     
-    // Show login form
-    this.showLoginForm();
-    this.showToast('Voorbeeldgegevens geladen - Login met wachtwoord: demo123', 'success');
+    // Show user selector
+    this.showUserSelector();
+    this.showToast('Voorbeeldgegevens geladen', 'success');
   },
 
   showOfflineIndicator: function() {
@@ -780,137 +746,55 @@ const app = {
     }
   },
 
-  showLoginForm: function() {
-    const modal = document.getElementById('loginModal');
+  showUserSelector: function() {
+    const modal = document.getElementById('userSelectorModal');
     if (!modal) return;
     
-    // Populate user dropdown
-    const select = document.getElementById('loginUsername');
-    if (select && appState.users.length > 0) {
-      select.innerHTML = '<option value="">Selecteer gebruiker</option>' +
-        appState.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+    const listContainer = document.getElementById('userSelectorList');
+    if (!listContainer) return;
+    
+    if (appState.users.length === 0) {
+      listContainer.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary);">Geen gebruikers beschikbaar</p>';
+      modal.style.display = 'flex';
+      return;
     }
     
-    // Clear form
-    document.getElementById('loginPassword').value = '';
-    document.getElementById('loginError').style.display = 'none';
+    listContainer.innerHTML = appState.users.map(user => `
+      <div class="user-selector-item" onclick="app.selectUser(${user.id})">
+        <div class="user-color-dot" style="background: ${user.color};"></div>
+        <div class="user-selector-info">
+          <strong>${user.name}</strong>
+          <small>${user.email || 'Geen email'}</small>
+        </div>
+      </div>
+    `).join('');
     
     modal.style.display = 'flex';
   },
 
-  handleLogin: function(event) {
-    event.preventDefault();
-    
-    const userId = parseInt(document.getElementById('loginUsername').value);
-    const password = document.getElementById('loginPassword').value;
-    const errorDiv = document.getElementById('loginError');
-    
-    if (!userId) {
-      errorDiv.textContent = 'Selecteer een gebruiker';
-      errorDiv.style.display = 'block';
-      return;
-    }
-    
+  selectUser: function(userId) {
     const user = appState.users.find(u => u.id === userId);
     if (!user) {
-      errorDiv.textContent = 'Gebruiker niet gevonden';
-      errorDiv.style.display = 'block';
+      this.showToast('Gebruiker niet gevonden', 'error');
       return;
     }
     
-    // Verify password (synchronous)
-    const isValid = verifyPassword(password, user.password);
-    
-    if (!isValid) {
-      errorDiv.textContent = 'Wachtwoord onjuist';
-      errorDiv.style.display = 'block';
-      document.getElementById('loginPassword').value = '';
-      document.getElementById('loginPassword').focus();
-      return;
-    }
-    
-    // Login successful
     appState.currentUserId = userId;
     appState.isLoggedIn = true;
     this.updateCurrentUserDisplay();
     
-    const modal = document.getElementById('loginModal');
+    const modal = document.getElementById('userSelectorModal');
     if (modal) modal.style.display = 'none';
     
     this.showCollection();
     this.showToast(`Welkom, ${user.name}!`, 'success');
   },
 
-  logout: function() {
-    if (confirm('Weet je zeker dat je wilt uitloggen?')) {
+  switchUser: function() {
+    if (confirm('Weet je zeker dat je van gebruiker wilt wisselen?')) {
       appState.currentUserId = null;
       appState.isLoggedIn = false;
-      this.showLoginForm();
-      this.showToast('Uitgelogd', 'success');
-    }
-  },
-
-  changeOwnPassword: async function(event) {
-    event.preventDefault();
-    
-    const currentPassword = document.getElementById('currentPassword').value;
-    const newPassword = document.getElementById('newPassword').value;
-    const confirmPassword = document.getElementById('confirmPassword').value;
-    
-    // Validate
-    if (newPassword !== confirmPassword) {
-      this.showToast('Wachtwoorden komen niet overeen', 'error');
-      return;
-    }
-    
-    if (newPassword.length < 6) {
-      this.showToast('Wachtwoord moet minstens 6 karakters zijn', 'error');
-      return;
-    }
-    
-    const currentUser = appState.users.find(u => u.id === appState.currentUserId);
-    if (!currentUser) {
-      this.showToast('Gebruiker niet gevonden', 'error');
-      return;
-    }
-    
-    // Check current password (synchronous)
-    const isValid = verifyPassword(currentPassword, currentUser.password);
-    if (!isValid) {
-      this.showToast('Huidig wachtwoord onjuist', 'error');
-      document.getElementById('currentPassword').value = '';
-      document.getElementById('currentPassword').focus();
-      return;
-    }
-    
-    // Change password (synchronous)
-    const newPasswordHash = hashPassword(newPassword);
-    currentUser.password = newPasswordHash;
-    
-    try {
-      await api.put(`/users/${currentUser.id}`, currentUser);
-      
-      // Update local state
-      const index = appState.users.findIndex(u => u.id === currentUser.id);
-      if (index !== -1) {
-        appState.users[index] = currentUser;
-      }
-      
-      this.showToast('Wachtwoord gewijzigd! Log opnieuw in.', 'success');
-      
-      // Clear form
-      document.getElementById('changePasswordForm').reset();
-      
-      // Logout and show login form
-      setTimeout(() => {
-        appState.currentUserId = null;
-        appState.isLoggedIn = false;
-        this.showLoginForm();
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Failed to change password:', error);
-      this.showToast(error.message, 'error');
+      this.showUserSelector();
     }
   },
 
@@ -1096,9 +980,9 @@ const app = {
   // VIEW MANAGEMENT
   // ============================================================================
   showCollection: function() {
-    // Check if user is logged in
+    // Check if user is selected
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     
@@ -1929,6 +1813,207 @@ const app = {
   },
 
   // ============================================================================
+  // QUICK TASTING FORM (Wine + Tasting Note combined)
+  // ============================================================================
+  showQuickTastingForm: function() {
+    appState.currentView = 'quickTastingForm';
+    this.hideAllViews();
+    document.getElementById('quickTastingFormView').style.display = 'block';
+    
+    // Reset form
+    document.getElementById('quickTastingForm').reset();
+    
+    // Set today's date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('quickTastingDatum').value = today;
+    
+    // Hide color options initially
+    document.getElementById('quickColorOptionsGroup').style.display = 'none';
+  },
+
+  updateQuickColorOptions: function() {
+    const selectedType = document.getElementById('quickWineKleur').value;
+    const colorOptionsGroup = document.getElementById('quickColorOptionsGroup');
+    const colorOptionsContainer = document.getElementById('quickColorOptions');
+
+    if (selectedType && CONFIG.colorOptions[selectedType]) {
+      colorOptionsGroup.style.display = 'block';
+      const colors = CONFIG.colorOptions[selectedType];
+      
+      colorOptionsContainer.innerHTML = colors.map(color => `
+        <label class="radio-label color-option">
+          <input type="radio" name="quickKleur" value="${color}" required>
+          <span>${CONFIG.colorEmojis[color] || '⚪'} ${color}</span>
+        </label>
+      `).join('');
+    } else {
+      colorOptionsGroup.style.display = 'none';
+      colorOptionsContainer.innerHTML = '';
+    }
+  },
+
+  saveQuickTasting: async function(event) {
+    event.preventDefault();
+    
+    // Get wine data
+    const naam = document.getElementById('quickWineNaam').value.trim();
+    const wijnhuis = document.getElementById('quickWineWijnhuis').value.trim();
+    const vintageInput = document.getElementById('quickWineVintage').value;
+    const vintage = parseInt(vintageInput);
+    const streek = document.getElementById('quickWineStreek').value.trim();
+    const druif = document.getElementById('quickWineDruif').value.trim();
+    const kleur = document.getElementById('quickWineKleur').value;
+    const aantalInput = document.getElementById('quickWineAantalFlessen').value;
+    const aantal_flessen = parseInt(aantalInput) || 1;
+    const prijsInput = document.getElementById('quickWinePrijs').value;
+    const prijs = prijsInput ? parseFloat(prijsInput) : 0;
+    
+    // Get tasting data
+    const formData = new FormData(event.target);
+    const tastingKleur = formData.get('quickKleur');
+    const intensiteit = formData.get('quickIntensiteit');
+    const geurintensiteit = formData.get('quickGeurintensiteit');
+    const droog = formData.get('quickDroog');
+    const tannines = formData.get('quickTannines');
+    const zuur = formData.get('quickZuur');
+    const alcohol = formData.get('quickAlcohol');
+    const body = formData.get('quickBody');
+    const afdronk = formData.get('quickAfdronk');
+    
+    // Validation - wine fields
+    if (!naam) {
+      this.showToast('Vul een naam in');
+      document.getElementById('quickWineNaam').focus();
+      return;
+    }
+    if (!wijnhuis) {
+      this.showToast('Vul een wijnhuis in');
+      document.getElementById('quickWineWijnhuis').focus();
+      return;
+    }
+    if (!vintageInput || isNaN(vintage) || vintage < 1900 || vintage > 2099) {
+      this.showToast('Vul een geldig jaar in (1900-2099)');
+      document.getElementById('quickWineVintage').focus();
+      return;
+    }
+    if (!streek) {
+      this.showToast('Vul een streek in');
+      document.getElementById('quickWineStreek').focus();
+      return;
+    }
+    if (!druif) {
+      this.showToast('Vul een druif in');
+      document.getElementById('quickWineDruif').focus();
+      return;
+    }
+    if (!kleur) {
+      this.showToast('Selecteer een kleur');
+      document.getElementById('quickWineKleur').focus();
+      return;
+    }
+    
+    // Validation - tasting fields
+    if (!tastingKleur || !intensiteit || !geurintensiteit || !droog || !tannines || !zuur || !alcohol || !body || !afdronk) {
+      this.showToast('Vul alle verplichte velden van de proefnotitie in');
+      return;
+    }
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    
+    try {
+      // Step 1: Create wine (with locatie_id: null)
+      const wineId = getNextWineId(appState.wines);
+      const wineData = {
+        id: wineId,
+        user_id: appState.currentUserId,
+        naam,
+        wijnhuis,
+        vintage,
+        streek,
+        druif,
+        kleur,
+        locatie: null,  // No location in quick form
+        aantal_flessen,
+        price_per_bottle: prijs,
+        photo_base64: null
+      };
+      
+      console.log(`[saveQuickTasting] Creating wine with ID ${wineId}`);
+      const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
+      newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
+      appState.wines.push(newWine);
+      
+      // Step 2: Calculate automatic stars for tasting note
+      // Count aroma's
+      const primaryAromas = formData.getAll('quickGeur_primair');
+      const totalAromas = primaryAromas.length;
+      
+      let halfStars = 0;
+      // Afdronk scoring
+      if (afdronk === 'Medium') halfStars += 1;
+      else if (afdronk === 'Hoog') halfStars += 2;
+      
+      // Aroma scoring (3+ aromas = 0.5 star)
+      if (totalAromas >= 3) halfStars += 1;
+      
+      // Geur intensiteit scoring
+      if (geurintensiteit === 'Medium') halfStars += 1;
+      
+      // Step 3: Create tasting note
+      const tastingId = getNextTastingNoteId(appState.tastingNotes);
+      const tastingData = {
+        id: tastingId,
+        wine_id: wineId,
+        user_id: appState.currentUserId,
+        datum: document.getElementById('quickTastingDatum').value,
+        wijntype: kleur,  // Same as wine color
+        kleur: tastingKleur,
+        intensiteit: intensiteit,
+        geurintensiteit: geurintensiteit,
+        geur_primair: primaryAromas,
+        geur_secundair: [],
+        geur_tertiair: [],
+        droog: droog,
+        tannines: tannines,
+        zuur: zuur,
+        alcohol: alcohol,
+        body: body,
+        afdronk: afdronk,
+        automatic_stars: halfStars,
+        manual_stars: 0,
+        manual_star_reasons: [],
+        notities: document.getElementById('quickTastingNotities').value.trim()
+      };
+      
+      console.log(`[saveQuickTasting] Creating tasting note with ID ${tastingId}`);
+      const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
+      newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
+      newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
+      appState.tastingNotes.push(newTasting);
+      
+      // Step 4: Log activities
+      this.logActivity('wine_added', wineId, naam);
+      const stars = Math.round(halfStars / 2);
+      const starText = '⭐'.repeat(stars);
+      this.logActivity('tasting_note_added', wineId, naam, `${naam} - ${starText}`);
+      
+      this.showToast('Wijn en proefnotitie opgeslagen!', 'success');
+      
+      // Navigate to wine detail
+      this.showWineDetail(wineId);
+      
+    } catch (error) {
+      console.error('Failed to save quick tasting:', error);
+      this.showToast(error.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+    }
+  },
+
+  // ============================================================================
   // TASTING NOTE OPERATIONS
   // ============================================================================
   saveTastingNote: async function(event) {
@@ -2290,7 +2375,7 @@ const app = {
         <dt>Druif</dt>
         <dd>${wine.druif}</dd>
         <dt>Locatie</dt>
-        <dd>${wine.locatie}</dd>
+        <dd>${wine.locatie || '<span style="color: var(--color-text-secondary);">Geen locatie</span>'}</dd>
         ${price > 0 ? `
           <dt>Prijs per fles</dt>
           <dd>€${price.toFixed(2)}</dd>
@@ -2586,7 +2671,7 @@ const app = {
   // ============================================================================
   showLocations: function() {
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     appState.currentView = 'locations';
@@ -2808,7 +2893,7 @@ const app = {
   // ============================================================================
   showActivities: function() {
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     appState.currentView = 'activities';
@@ -2983,7 +3068,7 @@ const app = {
   // ============================================================================
   showStatistics: function() {
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     appState.currentView = 'statistics';
@@ -3138,7 +3223,7 @@ const app = {
   // ============================================================================
   showValueDashboard: function() {
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     appState.currentView = 'value';
@@ -3372,7 +3457,7 @@ const app = {
   // ============================================================================
   showUsers: function() {
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     appState.currentView = 'users';
@@ -3664,9 +3749,6 @@ const app = {
     const modal = document.getElementById('userFormModal');
     if (!modal) return;
     
-    const passwordGroup = document.getElementById('userPasswordGroup');
-    const passwordInput = document.getElementById('userPassword');
-    
     modal.style.display = 'flex';
     
     if (userId) {
@@ -3680,28 +3762,12 @@ const app = {
       document.getElementById('userName').value = user.name;
       document.getElementById('userEmail').value = user.email || '';
       
-      // Show password field for admin to change password
-      if (passwordGroup) passwordGroup.style.display = 'block';
-      if (passwordInput) {
-        passwordInput.value = '';
-        passwordInput.required = false;
-        passwordInput.placeholder = 'Laat leeg om ongewijzigd te laten';
-      }
-      
       const colorRadio = document.querySelector(`input[name="userColor"][value="${user.color}"]`);
       if (colorRadio) colorRadio.checked = true;
     } else {
       document.getElementById('userFormTitle').textContent = 'Nieuwe Gebruiker';
       document.getElementById('userForm').reset();
       document.getElementById('userId').value = '';
-      
-      // Password required for new users
-      if (passwordGroup) passwordGroup.style.display = 'block';
-      if (passwordInput) {
-        passwordInput.value = '';
-        passwordInput.required = true;
-        passwordInput.placeholder = 'Wachtwoord voor nieuwe gebruiker';
-      }
     }
   },
 
@@ -3722,7 +3788,6 @@ const app = {
     const name = document.getElementById('userName').value.trim();
     const email = document.getElementById('userEmail').value.trim();
     const color = document.querySelector('input[name="userColor"]:checked')?.value;
-    const password = document.getElementById('userPassword').value;
     const userIdInput = document.getElementById('userId').value;
     
     // Validation
@@ -3743,19 +3808,6 @@ const app = {
       return;
     }
     
-    // Password validation
-    if (!userIdInput && !password) {
-      this.showToast('Wachtwoord is verplicht voor nieuwe gebruikers', 'error');
-      document.getElementById('userPassword').focus();
-      return;
-    }
-    
-    if (password && password.length < 6) {
-      this.showToast('Wachtwoord moet minstens 6 karakters zijn', 'error');
-      document.getElementById('userPassword').focus();
-      return;
-    }
-    
     const submitBtn = event.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.classList.add('loading');
@@ -3770,14 +3822,8 @@ const app = {
           name, 
           email, 
           color,
-          role: existingUser ? existingUser.role : 'user',
-          password: existingUser.password // Keep existing password
+          role: existingUser ? existingUser.role : 'user'
         };
-        
-        // Update password if provided (synchronous)
-        if (password) {
-          userData.password = hashPassword(password);
-        }
         
         console.log(`[saveUser] Updating user ID ${userId}`, userData);
         
@@ -3785,12 +3831,11 @@ const app = {
         const index = appState.users.findIndex(u => u.id === userId);
         if (index !== -1) appState.users[index] = updatedUser;
         
-        this.showToast(password ? 'Gebruiker en wachtwoord bijgewerkt' : 'Gebruiker bijgewerkt', 'success');
+        this.showToast('Gebruiker bijgewerkt', 'success');
       } else {
-        // Create new user (synchronous)
+        // Create new user
         const newId = this.getNextUserId();
-        const passwordHash = hashPassword(password);
-        const userData = { id: newId, name, email, color, role: 'user', password: passwordHash };
+        const userData = { id: newId, name, email, color, role: 'user' };
         
         console.log(`[saveUser] Creating new user with ID ${newId}`, userData);
         
@@ -3859,7 +3904,7 @@ const app = {
 
   showSettings: function() {
     if (!appState.isLoggedIn || !appState.currentUserId) {
-      this.showLoginForm();
+      this.showUserSelector();
       return;
     }
     appState.currentView = 'settings';
@@ -4057,10 +4102,12 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('Open deze console om gedetailleerde API logs te zien.');
   console.log('Klik op het verbindingsstatus icoon om API instellingen te openen.');
   console.log('='.repeat(60));
-  console.log('🔐 AUTHENTICATION: Enabled');
-  console.log('Default password for all users: demo123');
-  console.log('Users can change their own password in Settings');
-  console.log('Admin can change all user passwords');
+  console.log('👤 USER SELECTION: Simple user picker (no passwords)');
+  console.log('Select your user on startup to continue');
+  console.log('='.repeat(60));
+  console.log('🍷 QUICK TASTING: Create wine + tasting note in one form');
+  console.log('Use "Nieuwe Proefnotitie" button for fast wine entry');
+  console.log('Wine will be created without location (can be added later)');
   console.log('='.repeat(60));
   console.log('📰 ACTIVITY FEED PERSISTENCE:');
   console.log('Activities are saved to /activities endpoint');
