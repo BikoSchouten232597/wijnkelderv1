@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -1815,7 +1815,53 @@ const app = {
   // ============================================================================
   // QUICK TASTING FORM (Wine + Tasting Note combined)
   // ============================================================================
-  showQuickTastingForm: function() {
+  _quickSetupStarsSection: function() {
+    // Listen to form fields for auto star calculation
+    const form = document.getElementById('quickTastingForm');
+    const autoDisplay = document.getElementById('quickAutomaticStarsDisplay');
+    const expl = document.getElementById('quickAutomaticStarsExplanation');
+    const starInputs = form.querySelectorAll('input, select');
+    function updateStarsUI() {
+      const afdronk = form.querySelector('input[name="quickAfdronk"]:checked')?.value;
+      const geurintensiteit = form.querySelector('input[name="quickGeurintensiteit"]:checked')?.value;
+      const primary = form.querySelectorAll('input[name="quickGeur_primair"]:checked').length;
+      const secundair = form.querySelectorAll('input[name="quickGeur_secundair"]:checked').length;
+      const tertiair = form.querySelectorAll('input[name="quickGeur_tertiair"]:checked').length;
+      let autoStars = 0;
+      let reasonList = [];
+      // Afdronk scoring
+      if (afdronk === 'Medium') { autoStars += 0.5; reasonList.push('Medium afdronk (+0.5 ster)'); }
+      else if (afdronk === 'Hoog') { autoStars += 1.0; reasonList.push('Hoog afdronk (+1.0 ster)'); }
+      else { reasonList.push('Afdronk laag (0 sterren)'); }
+      // Aroma scoring
+      if ((primary + secundair + tertiair) >= 3) {
+        autoStars += 0.5;
+        reasonList.push(`Minimaal 3 aroma's geselecteerd (${primary + secundair + tertiair} totaal, +0.5 ster)`);
+      } else {
+        reasonList.push(`Minder dan 3 aroma's geselecteerd (${primary + secundair + tertiair})`);
+      }
+      // Geurintensiteit
+      if (geurintensiteit === 'Medium') { autoStars += 0.5; reasonList.push('Medium geurintensiteit (+0.5 ster)'); }
+      else { reasonList.push('Geurintensiteit niet medium (0 ster)'); }
+      autoStars = Math.round(autoStars * 2) / 2;
+      // Render visual stars
+      let visual = '';
+      let full = Math.floor(autoStars);
+      let half = autoStars % 1 >= 0.5 ? 1 : 0;
+      for (let i=0; i<full; i++) visual += '⭐';
+      if (half) visual += '✨';
+      for (let i=full+half; i<5; i++) visual += '☆';
+      autoDisplay.textContent = `${visual} (${autoStars})`;
+      expl.textContent = reasonList.join('; ');
+      // Set radio default
+      const manualStarsRadios = document.querySelectorAll('input[name="quickManualStars"]');
+      if (manualStarsRadios && !form.querySelector('input[name="quickManualStars"]:checked')) {
+        manualStarsRadios[0].checked = true;
+      }
+    }
+    starInputs.forEach(inp => inp.addEventListener('change', updateStarsUI));
+    updateStarsUI();
+  },
     appState.currentView = 'quickTastingForm';
     this.hideAllViews();
     document.getElementById('quickTastingFormView').style.display = 'block';
@@ -1829,6 +1875,17 @@ const app = {
     
     // Hide color options initially
     document.getElementById('quickColorOptionsGroup').style.display = 'none';
+  },
+
+  showQuickTastingForm: function() {
+    appState.currentView = 'quickTastingForm';
+    this.hideAllViews();
+    document.getElementById('quickTastingFormView').style.display = 'block';
+    document.getElementById('quickTastingForm').reset();
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('quickTastingDatum').value = today;
+    document.getElementById('quickColorOptionsGroup').style.display = 'none';
+    this._quickSetupStarsSection();
   },
 
   updateQuickColorOptions: function() {
@@ -1853,6 +1910,94 @@ const app = {
   },
 
   saveQuickTasting: async function(event) {
+    event.preventDefault();
+    // --- get wine data as before ---
+    const naam = document.getElementById('quickWineNaam').value.trim();
+    const wijnhuis = document.getElementById('quickWineWijnhuis').value.trim();
+    const vintageInput = document.getElementById('quickWineVintage').value;
+    const vintage = parseInt(vintageInput);
+    const streek = document.getElementById('quickWineStreek').value.trim();
+    const druif = document.getElementById('quickWineDruif').value.trim();
+    const kleur = document.getElementById('quickWineKleur').value;
+    const aantalInput = document.getElementById('quickWineAantalFlessen').value;
+    const aantal_flessen = parseInt(aantalInput) || 1;
+    const prijsInput = document.getElementById('quickWinePrijs').value;
+    const prijs = prijsInput ? parseFloat(prijsInput) : 0;
+    // --- get tasting form fields ---
+    const formData = new FormData(event.target);
+    const tastingKleur = formData.get('quickKleur');
+    const intensiteit = formData.get('quickIntensiteit');
+    const geurintensiteit = formData.get('quickGeurintensiteit');
+    const droog = formData.get('quickDroog');
+    const tannines = formData.get('quickTannines');
+    const zuur = formData.get('quickZuur');
+    const alcohol = formData.get('quickAlcohol');
+    const body = formData.get('quickBody');
+    const afdronk = formData.get('quickAfdronk');
+    // --- get aromas ---
+    const primaryAromas = formData.getAll('quickGeur_primair');
+    const secundairAromas = formData.getAll('quickGeur_secundair');
+    const tertiairAromas = formData.getAll('quickGeur_tertiair');
+    const totalAromas = primaryAromas.length + secundairAromas.length + tertiairAromas.length;
+    // --- automatic stars calculation ---
+    let autoStars = 0;
+    // Afdronk: Medium +0.5, Hoog +1.0
+    if (afdronk === 'Medium') autoStars += 0.5;
+    else if (afdronk === 'Hoog') autoStars += 1.0;
+    // Aroma score (3+ aromas = +0.5)
+    if (totalAromas >= 3) autoStars += 0.5;
+    // Geurintensiteit: Medium = +0.5
+    if (geurintensiteit === 'Medium') autoStars += 0.5;
+    // max 5
+    autoStars = Math.round(autoStars * 2) / 2; // round to .5
+    // --- manual stars input ---
+    let manualStars = 0;
+    const manualStarsInput = document.querySelector('input[name="quickManualStars"]:checked');
+    if (manualStarsInput) manualStars = parseInt(manualStarsInput.value) || 0;
+    // --- manual reasons (checkboxes + custom) ---
+    const reasonsCheckboxes = document.querySelectorAll('input[name="quickManualStarReasons"]:checked');
+    const manual_star_reasons = Array.from(reasonsCheckboxes).map(cb => cb.value);
+    const customReason = document.getElementById('quickManualStarReasonCustom').value.trim();
+    if (customReason) manual_star_reasons.push(customReason);
+    // --- validation ---
+    if (!naam) { this.showToast('Vul een naam in'); document.getElementById('quickWineNaam').focus(); return; }
+    if (!wijnhuis) { this.showToast('Vul een wijnhuis in'); document.getElementById('quickWineWijnhuis').focus(); return; }
+    if (!vintageInput || isNaN(vintage) || vintage < 1900 || vintage > 2099) { this.showToast('Vul een geldig jaar in (1900-2099)'); document.getElementById('quickWineVintage').focus(); return; }
+    if (!streek) { this.showToast('Vul een streek in'); document.getElementById('quickWineStreek').focus(); return; }
+    if (!druif) { this.showToast('Vul een druif in'); document.getElementById('quickWineDruif').focus(); return; }
+    if (!kleur) { this.showToast('Selecteer een kleur'); document.getElementById('quickWineKleur').focus(); return; }
+    if (!tastingKleur || !intensiteit || !geurintensiteit || !droog || !tannines || !zuur || !alcohol || !body || !afdronk) { this.showToast('Vul alle verplichte velden van de proefnotitie in'); return; }
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    try {
+      // Create wine
+      const wineId = getNextWineId(appState.wines);
+      const wineData = { id: wineId, user_id: appState.currentUserId, naam, wijnhuis, vintage, streek, druif, kleur, locatie: null, aantal_flessen, price_per_bottle: prijs, photo_base64: null };
+      const newWine = await api.post(API_CONFIG.endpoints.wines, wineData);
+      newWine.id = typeof newWine.id === 'string' ? parseInt(newWine.id, 10) : newWine.id;
+      appState.wines.push(newWine);
+      // Create tasting note
+      const tastingId = getNextTastingNoteId(appState.tastingNotes);
+      const tastingData = { id: tastingId, wine_id: wineId, user_id: appState.currentUserId, datum: document.getElementById('quickTastingDatum').value, wijntype: kleur, kleur: tastingKleur, intensiteit, geurintensiteit, geur_primair: primaryAromas, geur_secundair: secundairAromas, geur_tertiair: tertiairAromas, droog, tannines, zuur, alcohol, body, afdronk, automatic_stars: autoStars, manual_stars: manualStars, manual_star_reasons, notities: document.getElementById('quickTastingNotities').value.trim() };
+      const newTasting = await api.post(API_CONFIG.endpoints.tastingNotes, tastingData);
+      newTasting.id = typeof newTasting.id === 'string' ? parseInt(newTasting.id, 10) : newTasting.id;
+      newTasting.wine_id = typeof newTasting.wine_id === 'string' ? parseInt(newTasting.wine_id, 10) : newTasting.wine_id;
+      appState.tastingNotes.push(newTasting);
+      this.logActivity('wine_added', wineId, naam);
+      const stars = manualStars || autoStars;
+      const starText = '⭐'.repeat(Math.round(stars));
+      this.logActivity('tasting_note_added', wineId, naam, `${naam} - ${starText}`);
+      this.showToast('Wijn en proefnotitie opgeslagen!', 'success');
+      this.showWineDetail(wineId);
+    } catch (error) {
+      console.error('Failed to save quick tasting:', error);
+      this.showToast(error.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+    }
+  },
     event.preventDefault();
     
     // Get wine data

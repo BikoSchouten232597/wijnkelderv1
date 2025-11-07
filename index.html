@@ -476,7 +476,42 @@
                             <textarea id="quickTastingNotities" class="form-control" rows="3" placeholder="Optionele opmerkingen..."></textarea>
                         </div>
                     </div>
-                    
+
+                    <!-- ⭐-------------
+                        STERREN SECTION
+                    -------------⭐-->
+                    <div class="form-section beoordeling-section" id="quickStarsSection">
+                        <h3>⭐ Sterren</h3>
+                        <div class="form-group">
+                            <label class="form-label" for="quickAutomaticStarsDisplay">
+                                Automatische sterren
+                            </label>
+                            <div id="quickAutomaticStarsDisplay" style="font-size: 2em; color: #FFD700; margin-bottom: var(--space-16);">⭐⭐⭐⭐ (4)</div>
+                            <small class="form-helper" id="quickAutomaticStarsExplanation" style="color: var(--color-text-secondary); margin: var(--space-8) 0 0 0; display: block;"></small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="quickManualStars">Handmatige sterren (override)</label>
+                            <div id="quickManualStars" class="stars-input">
+                                <label class="star-label"><input type="radio" name="quickManualStars" value="0"><span class="star">☆</span> 0</label>
+                                <label class="star-label"><input type="radio" name="quickManualStars" value="1"><span class="star">⭐</span> 1</label>
+                                <label class="star-label"><input type="radio" name="quickManualStars" value="2"><span class="star">⭐⭐</span> 2</label>
+                                <label class="star-label"><input type="radio" name="quickManualStars" value="3"><span class="star">⭐⭐⭐</span> 3</label>
+                                <label class="star-label"><input type="radio" name="quickManualStars" value="4"><span class="star">⭐⭐⭐⭐</span> 4</label>
+                                <label class="star-label"><input type="radio" name="quickManualStars" value="5"><span class="star">⭐⭐⭐⭐⭐</span> 5</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Redenen voor handmatige sterren (optioneel)</label>
+                            <div class="checkbox-grid" id="quickManualStarsReasons">
+                                <label class="checkbox-label"><input type="checkbox" name="quickManualStarReasons" value="Perfecte balans"> Perfecte balans</label>
+                                <label class="checkbox-label"><input type="checkbox" name="quickManualStarReasons" value="Unieke smaak"> Unieke smaak</label>
+                                <label class="checkbox-label"><input type="checkbox" name="quickManualStarReasons" value="Goede afwerking"> Goede afwerking</label>
+                                <label class="checkbox-label"><input type="checkbox" name="quickManualStarReasons" value="Aangename finish"> Aangename finish</label>
+                                <label class="checkbox-label"><input type="checkbox" name="quickManualStarReasons" value="Volle aroma"> Volle aroma</label>
+                            </div>
+                            <input type="text" class="form-control" id="quickManualStarReasonCustom" name="quickManualStarReasonCustom" placeholder="Eigen reden toevoegen..." style="margin-top: var(--space-8);">
+                        </div>
+                    </div>
                     <div class="form-actions">
                         <button type="button" class="btn btn--secondary" onclick="app.showCollection()">Annuleren</button>
                         <button type="submit" class="btn btn--primary">Opslaan</button>
