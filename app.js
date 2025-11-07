@@ -2,7 +2,7 @@
 // API CONFIGURATION
 // ============================================================================
 const API_CONFIG = {
-  baseURL: 'http://wijndb.schoutendigital.com',
+  baseURL: 'http://localhost:3001',
   timeout: 5000,
   endpoints: {
     wines: '/wines',
@@ -1946,9 +1946,11 @@ const app = {
       appState.wines.push(newWine);
       
       // Step 2: Calculate automatic stars for tasting note
-      // Count aroma's
+      // Count all aroma's (primary + secondary + tertiary)
       const primaryAromas = formData.getAll('quickGeur_primair');
-      const totalAromas = primaryAromas.length;
+      const secundairAromas = formData.getAll('quickGeur_secundair');
+      const tertiairAromas = formData.getAll('quickGeur_tertiair');
+      const totalAromas = primaryAromas.length + secundairAromas.length + tertiairAromas.length;
       
       let halfStars = 0;
       // Afdronk scoring
@@ -1973,8 +1975,8 @@ const app = {
         intensiteit: intensiteit,
         geurintensiteit: geurintensiteit,
         geur_primair: primaryAromas,
-        geur_secundair: [],
-        geur_tertiair: [],
+        geur_secundair: secundairAromas,
+        geur_tertiair: tertiairAromas,
         droog: droog,
         tannines: tannines,
         zuur: zuur,
